@@ -1,155 +1,184 @@
-# AbracaDABra Logger – WebUI SDR
+# AbracaDABra Logger WebUI
 
-AbracaDABra Logger WebUI est une interface Web moderne de type **SDR dashboard** permettant de visualiser, analyser et exploiter les logs CSV générés par **AbracaDABra** (réception DAB+).
+Interface web moderne pour visualiser et partager les logs de réception DAB/DAB+ d'**AbracaDABra**.
 
-L’interface regroupe en une seule application :
-- un **tableau dynamique des multiplex (MUX)**,
-- une **carte interactive des sites d’émission (TII / TX)**,
-- une **interface de configuration complète**,
-- un **backend Python** chargé de l’agrégation et du calcul des distances.
-
-Le projet est pensé pour un usage **DX / monitoring**, local ou sur Raspberry Pi.
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-green)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
-## ✨ Fonctionnalités principales
+## Fonctionnalités
 
-### 🔹 Tableau dynamique MUX
-- **1 ligne = 1 MUX sur 1 bloc (fréquence)**
-  - Exemple :
-    - M1 sur **5C** → 1 ligne
-    - M1 sur **8C** → 1 autre ligne
-- Chaque ligne regroupe **plusieurs sites d’émission** (via plusieurs TII)
-- Menu déroulant par ligne :
-  - TII (Main-Sub)
-  - site d’émission (si connu)
-  - distance RX → TX
-  - dates de première et dernière réception
-- Filtres : bloc, recherche texte, statut actif/inactif
+### WebUI (nouvelle)
+- **Tableau DX** interactif avec regroupement par mux/fréquence
+- **Dropdown TII** cliquable affichant les émetteurs (site, distance, SNR)
+- **Carte Leaflet** avec marqueurs RX (bleu) et TX (rouge)
+- **Thème sombre** style FM-DX Webserver
+- **Auto-refresh** configurable (15s à 2min)
+- **Configuration** via interface web (chemins, Telegram, FTP)
 
----
+### Bot Telegram (intégré)
+Commandes disponibles :
+- `DX` → tous les mux
+- `DX 9B` → filtrer par bloc
+- `DX >300` → filtrer par distance
+- `LAST` / `LAST 5` → réceptions les plus récentes
+- `STATUS` → état du système
+- `HELP` → aide
 
-### 🔹 Carte interactive
-- Basée sur **Leaflet**
-- Affichage :
-  - position RX
-  - sites TX connus (via `dab-tx-list.csv`)
-- Calcul automatique des distances (Haversine)
-- Interactions croisées tableau ↔ carte
+### Export FTP (optionnel)
+Upload automatique du tableau HTML vers un serveur FTP.
 
 ---
 
-### 🔹 Configuration via l’interface Web
-- Définition du **dossier des CSV AbracaDABra**
-- Détection automatique du **dernier CSV**
-- **Suggestions automatiques de dossiers** si l’emplacement est inconnu
-- Configuration complète du **bot Telegram**
-  - token
-  - chat ID(s)
-  - activation/désactivation
-  - seuils de perte MUX / TII
+## Installation
+
+### Prérequis
+- Python 3.10+
+- AbracaDABra avec export CSV activé
+
+### Installation des dépendances
+
+```bash
+# Créer un environnement virtuel (recommandé)
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# ou: venv\Scripts\activate  # Windows
+
+# Installer les dépendances
+pip install -r requirements.txt
+```
 
 ---
 
-## 🧱 Architecture
+## Lancement
+
+```bash
+# Activer l'environnement virtuel
+source venv/bin/activate
+
+# Lancer le serveur
+python run.py
+```
+
+Puis ouvrir http://localhost:8000 dans votre navigateur.
+
+### Options de lancement
+
+```bash
+python run.py --host 0.0.0.0 --port 8000        # Accessible sur le réseau local
+python run.py --reload                           # Mode développement (auto-reload)
+```
+
+---
+
+## Configuration
+
+### Via l'interface web
+
+1. Ouvrir http://localhost:8000
+2. Aller dans l'onglet **Configuration**
+3. Configurer :
+   - **Position RX** : nom et coordonnées du récepteur
+   - **Chemins** : dossier CSV AbracaDABra et base TX TII
+   - **Telegram** : token du bot et chat IDs autorisés
+   - **FTP** : serveur, identifiants, dossier distant
+
+### Via fichier JSON
+
+Le fichier `data/config.json` est créé automatiquement :
+
+```json
+{
+  "paths": {
+    "csv_dir": "/chemin/vers/dossier/csv",
+    "tx_db_path": "/chemin/vers/dab-tx-list.csv"
+  },
+  "rx": {
+    "name": "Mon Récepteur",
+    "lat": 49.768,
+    "lon": 4.72
+  },
+  "telegram": {
+    "token": "123456:ABC...",
+    "enabled": true
+  }
+}
+```
+
+### Via variables d'environnement (legacy)
+
+```bash
+export ABRACA_CSV_DIR="/home/user/Documents"
+export ABRACA_TG_TOKEN="123456:ABC..."
+```
+
+---
+
+## Structure du projet
 
 ```
-AbracaDABra-Logger/
-│
-├── app.py                 # Backend Flask (API + serveur WebUI)
-├── config.json            # Configuration sauvegardée
-│
-├── webui/
-│   ├── index.html         # Interface Web (style SDR)
-│   ├── styles.css         # Thème sombre / dashboard
-│   └── app.js             # Logique UI
-│
+AbracaDABra-Logger-WebUI/
+├── app/
+│   ├── api/
+│   │   ├── models/         # Modèles Pydantic
+│   │   └── routes/         # Endpoints API REST
+│   ├── core/
+│   │   ├── csv_parser.py   # Parsing CSV AbracaDABra
+│   │   ├── tx_database.py  # Base TX TII
+│   │   ├── matcher.py      # Matching RX/TX
+│   │   └── telegram_bot.py # Bot Telegram
+│   ├── static/             # JS, CSS
+│   ├── templates/          # HTML (Jinja2)
+│   ├── config.py           # Gestion configuration
+│   └── main.py             # Application FastAPI
 ├── data/
-│   └── dab-tx-list.csv    # Base sites TX (optionnelle)
-│
+│   └── config.json         # Configuration utilisateur
+├── requirements.txt
+├── run.py                  # Point d'entrée
 └── README.md
 ```
 
 ---
 
-## 🧩 Dépendances
+## API REST
 
-### Système
-- Linux (Debian / Raspberry Pi OS recommandé)
-- Python **3.9+**
-
-### Python
-```bash
-pip3 install flask pandas
-```
-
----
-
-## 🚀 Installation
-
-```bash
-git clone https://github.com/DABodr/AbracaDABra-Logger.git
-cd AbracaDABra-Logger
-pip3 install flask pandas
-```
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/status` | État du système |
+| `GET /api/dx/table` | Données du tableau DX |
+| `GET /api/map/markers` | Marqueurs pour la carte |
+| `GET /api/config` | Configuration actuelle |
+| `PUT /api/config` | Mettre à jour la configuration |
 
 ---
 
-## ▶️ Démarrage
+## Scripts legacy
 
-```bash
-python3 app.py
-```
+Les scripts originaux sont toujours disponibles :
 
-Interface accessible sur :
-- `http://localhost:5000`
-- `http://IP_DU_SERVEUR:5000`
+- `abracadabra_dx_bot.py` - Bot Telegram + HTML standalone
+- `map_acadabra.py` - Générateur de carte Folium
 
 ---
 
-## ⚙️ Première configuration
+## Dépendances
 
-1. Ouvrir l’onglet **Configuration**
-2. Cliquer sur **Suggérer dossiers**
-3. Vérifier / ajuster le dossier CSV
-4. Cliquer sur **Valider**
-5. Cliquer sur **Sauver**
+- **FastAPI** - Framework web async
+- **Uvicorn** - Serveur ASGI
+- **Pandas** - Traitement des données CSV
+- **Pydantic** - Validation des données
+- **Requests** - API Telegram
+- **Jinja2** - Templates HTML
 
-Le tableau et la carte se remplissent automatiquement.
-
----
-
-## 🤖 Bot Telegram (optionnel)
-
-- Renseigner le token et les Chat ID
-- Activer les notifications
-- Tester avec le bouton **Test Telegram**
+Frontend (CDN) :
+- **Tailwind CSS** - Styling
+- **Alpine.js** - Interactivité
+- **Leaflet.js** - Carte interactive
 
 ---
 
-## 🧠 Logique d’agrégation
+## Licence
 
-- Clé MUX :
-```
-(bloc, EID)
-```
-- Plusieurs TII regroupés dans une même ligne MUX
-- Distinction stricte par bloc (fréquence)
-
----
-
-## 🛠️ Évolutions possibles
-- Historisation longue durée
-- Alertes Telegram avancées
-- Export CSV / JSON
-- Mode multi-RX
-
----
-
-## 📄 Licence
-Projet expérimental – licence à définir.
-
----
-
-## 👍 Conclusion
-AbracaDABra Logger WebUI fournit une vision claire, moderne et exploitable des réceptions DAB+, sans complexifier l’installation.
+MIT - Voir [LICENSE](LICENSE)

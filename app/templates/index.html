@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AbracaDABra Logger</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        'dab-dark': '#0d1117',
+                        'dab-darker': '#010409',
+                        'dab-card': '#161b22',
+                        'dab-border': '#30363d',
+                        'dab-green': '#3fb950',
+                        'dab-yellow': '#d29922',
+                        'dab-red': '#f85149',
+                        'dab-blue': '#58a6ff',
+                        'dab-purple': '#a371f7',
+                        'dab-orange': '#db6d28',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        [x-cloak] { display: none !important; }
+
+        body {
+            background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        .glow-green { text-shadow: 0 0 10px #3fb950, 0 0 20px #3fb95080; }
+        .glow-blue { text-shadow: 0 0 10px #58a6ff, 0 0 20px #58a6ff80; }
+        .glow-red { text-shadow: 0 0 10px #f85149, 0 0 20px #f8514980; }
+
+        .led-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            box-shadow: 0 0 6px currentColor;
+        }
+
+        .card-glow {
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.1);
+        }
+
+        #map {
+            height: 550px;
+            width: 100%;
+            border-radius: 8px;
+            border: 1px solid #30363d;
+        }
+
+        .leaflet-container { background: #0d1117; }
+
+        .data-table {
+            font-size: 13px;
+        }
+
+        .data-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .snr-excellent { background: linear-gradient(90deg, #238636 0%, #2ea043 100%); color: white; }
+        .snr-good { background: linear-gradient(90deg, #3fb950 0%, #56d364 100%); color: black; }
+        .snr-medium { background: linear-gradient(90deg, #d29922 0%, #e3b341 100%); color: black; }
+        .snr-bad { background: linear-gradient(90deg, #da3633 0%, #f85149 100%); color: white; }
+
+        .dist-local { background: linear-gradient(90deg, #238636 0%, #2ea043 100%); }
+        .dist-medium { background: linear-gradient(90deg, #9e6a03 0%, #d29922 100%); }
+        .dist-far { background: linear-gradient(90deg, #8957e5 0%, #a371f7 100%); }
+        .dist-extreme { background: linear-gradient(90deg, #da3633 0%, #f85149 100%); }
+
+        .tii-badge {
+            font-family: 'Consolas', 'Monaco', monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #161b22; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        .tab-btn {
+            transition: all 0.2s ease;
+        }
+        .tab-btn:hover {
+            background: rgba(88, 166, 255, 0.1);
+        }
+        .tab-btn.active {
+            background: linear-gradient(90deg, rgba(88, 166, 255, 0.2) 0%, rgba(88, 166, 255, 0.1) 100%);
+            border-color: #58a6ff;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-200" x-data="appData()" x-init="init()">
+
+    <!-- Header -->
+    <header class="bg-dab-darker/80 backdrop-blur border-b border-dab-border sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-3xl">📻</span>
+                        <div>
+                            <h1 class="text-xl font-bold text-white glow-blue">AbracaDABra Logger</h1>
+                            <p class="text-xs text-gray-500">DAB/DAB+ DX Monitor</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-6">
+                    <!-- Status indicators -->
+                    <div class="flex items-center gap-4 text-sm">
+                        <div class="flex items-center gap-2">
+                            <div
+                                class="led-indicator"
+                                :class="{
+                                    'bg-dab-green text-dab-green': status.status === 'online',
+                                    'bg-dab-yellow text-dab-yellow': status.status === 'warning',
+                                    'bg-dab-red text-dab-red': status.status === 'error'
+                                }"
+                            ></div>
+                            <span class="text-gray-400" x-text="status.status === 'online' ? 'EN LIGNE' : 'HORS LIGNE'"></span>
+                        </div>
+
+                        <div class="h-4 w-px bg-dab-border"></div>
+
+                        <div class="text-gray-400">
+                            <span class="text-dab-blue font-mono" x-text="muxGroups.length"></span> MUX
+                        </div>
+
+                        <div class="h-4 w-px bg-dab-border"></div>
+
+                        <div class="text-gray-400">
+                            <span class="text-dab-purple font-mono" x-text="totalTII"></span> TII
+                        </div>
+                    </div>
+
+                    <!-- Last update -->
+                    <div class="text-xs text-gray-500 font-mono">
+                        MAJ: <span x-text="lastUpdate || '—'" class="text-gray-400"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="bg-dab-card/50 border-b border-dab-border">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex gap-1 py-2">
+                <button
+                    @click="activeTab = 'table'"
+                    :class="{ 'active': activeTab === 'table' }"
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                >
+                    <span>📊</span> Tableau DX
+                </button>
+                <button
+                    @click="activeTab = 'map'"
+                    :class="{ 'active': activeTab === 'map' }"
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                >
+                    <span>🗺️</span> Carte
+                </button>
+                <button
+                    @click="activeTab = 'config'"
+                    :class="{ 'active': activeTab === 'config' }"
+                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                >
+                    <span>⚙️</span> Configuration
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- TABLE TAB -->
+        <div x-show="activeTab === 'table'" x-cloak>
+
+            <!-- Control Bar -->
+            <div class="bg-dab-card border border-dab-border rounded-lg p-4 mb-4 flex flex-wrap items-center gap-4">
+                <!-- Search -->
+                <div class="flex-1 min-w-[250px]">
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
+                        <input
+                            type="text"
+                            x-model="filterText"
+                            placeholder="Rechercher mux, bloc, site..."
+                            class="w-full bg-dab-dark border border-dab-border rounded-lg pl-10 pr-4 py-2 text-sm focus:border-dab-blue focus:outline-none"
+                        >
+                    </div>
+                </div>
+
+                <!-- Auto-refresh -->
+                <div class="flex items-center gap-3 bg-dab-dark rounded-lg px-4 py-2 border border-dab-border">
+                    <span class="text-sm text-gray-400">Auto-refresh</span>
+                    <button
+                        @click="toggleAutoRefresh()"
+                        class="relative w-12 h-6 rounded-full transition-colors"
+                        :class="autoRefresh ? 'bg-dab-green' : 'bg-dab-border'"
+                    >
+                        <span
+                            :class="autoRefresh ? 'translate-x-6' : 'translate-x-1'"
+                            class="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                        ></span>
+                    </button>
+                    <select
+                        x-model="refreshInterval"
+                        @change="updateRefreshInterval()"
+                        class="bg-dab-darker border border-dab-border rounded px-2 py-1 text-sm"
+                    >
+                        <option value="15">15s</option>
+                        <option value="30">30s</option>
+                        <option value="60">60s</option>
+                        <option value="120">2min</option>
+                    </select>
+                </div>
+
+                <!-- Refresh button -->
+                <button
+                    @click="loadTableData()"
+                    class="px-4 py-2 bg-dab-blue/20 hover:bg-dab-blue/30 border border-dab-blue/50 rounded-lg text-dab-blue text-sm font-medium transition-colors"
+                >
+                    🔄 Rafraîchir
+                </button>
+            </div>
+
+            <!-- Data Table -->
+            <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
+                <div class="overflow-x-auto max-h-[600px] overflow-y-auto">
+                    <table class="w-full data-table">
+                        <thead class="bg-dab-darker text-gray-400 text-xs uppercase tracking-wider">
+                            <tr>
+                                <th class="px-4 py-3 text-left font-semibold">Bloc</th>
+                                <th class="px-4 py-3 text-left font-semibold">Ensemble</th>
+                                <th class="px-4 py-3 text-right font-semibold">Fréquence</th>
+                                <th class="px-4 py-3 text-center font-semibold">SNR</th>
+                                <th class="px-4 py-3 text-center font-semibold">Sites TX</th>
+                                <th class="px-4 py-3 text-center font-semibold">TII</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-dab-border">
+                            <template x-for="mux in filteredMuxGroups" :key="mux.bloc + '-' + mux.ensemble">
+                                <tr class="group">
+                                    <td colspan="6" class="p-0">
+                                        <!-- Main Row -->
+                                        <div
+                                            class="flex items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
+                                            @click="toggleTII(mux.bloc + '-' + mux.ensemble)"
+                                        >
+                                            <div class="px-4 py-3 w-20">
+                                                <span class="font-mono font-bold text-dab-blue text-lg" x-text="mux.bloc"></span>
+                                            </div>
+                                            <div class="px-4 py-3 flex-1">
+                                                <span class="font-semibold text-white" x-text="mux.ensemble"></span>
+                                                <span class="ml-2 text-xs text-gray-500 font-mono" x-text="'(' + mux.eid + ')'"></span>
+                                            </div>
+                                            <div class="px-4 py-3 w-32 text-right">
+                                                <span class="font-mono text-gray-300" x-text="mux.frequency_mhz.toFixed(3)"></span>
+                                                <span class="text-gray-500 text-xs ml-1">MHz</span>
+                                            </div>
+                                            <div class="px-4 py-3 w-28 text-center">
+                                                <span
+                                                    x-show="mux.snr_max"
+                                                    class="px-2 py-1 rounded text-xs font-bold"
+                                                    :class="{
+                                                        'snr-excellent': mux.snr_max >= 20,
+                                                        'snr-good': mux.snr_max >= 10 && mux.snr_max < 20,
+                                                        'snr-medium': mux.snr_max >= 6 && mux.snr_max < 10,
+                                                        'snr-bad': mux.snr_max < 6
+                                                    }"
+                                                    x-text="mux.snr_max?.toFixed(1) + ' dB'"
+                                                ></span>
+                                            </div>
+                                            <div class="px-4 py-3 w-24 text-center">
+                                                <span class="text-dab-purple font-semibold" x-text="mux.tx_site_count"></span>
+                                                <span class="text-gray-500 text-xs ml-1">sites</span>
+                                            </div>
+                                            <div class="px-4 py-3 w-32 text-center">
+                                                <button
+                                                    class="px-3 py-1.5 bg-dab-purple/20 hover:bg-dab-purple/30 border border-dab-purple/50 rounded-lg text-dab-purple text-xs font-bold transition-colors inline-flex items-center gap-1"
+                                                >
+                                                    <span class="tii-badge" x-text="'TII (' + mux.tii_list.length + ')'"></span>
+                                                    <svg
+                                                        class="w-3 h-3 transition-transform"
+                                                        :class="{ 'rotate-180': expandedTII[mux.bloc + '-' + mux.ensemble] }"
+                                                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                                    >
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- TII Expanded Panel -->
+                                        <div
+                                            x-show="expandedTII[mux.bloc + '-' + mux.ensemble]"
+                                            x-collapse
+                                            class="bg-dab-darker/50 border-t border-dab-border"
+                                        >
+                                            <div class="p-4 grid gap-2">
+                                                <template x-for="tii in mux.tii_list" :key="tii.tii_code">
+                                                    <div class="flex items-center gap-3 p-3 bg-dab-card/80 rounded-lg border border-dab-border hover:border-dab-blue/30 transition-colors">
+                                                        <div class="w-8 h-8 bg-dab-blue/20 rounded-full flex items-center justify-center">
+                                                            <span class="text-dab-blue">📍</span>
+                                                        </div>
+                                                        <div class="w-16">
+                                                            <span class="tii-badge font-bold text-dab-blue" x-text="tii.tii_code"></span>
+                                                        </div>
+                                                        <div class="flex-1">
+                                                            <span class="text-white" x-text="tii.location"></span>
+                                                        </div>
+                                                        <div class="flex items-center gap-3">
+                                                            <span
+                                                                class="px-2 py-1 rounded text-xs font-bold text-white"
+                                                                :class="{
+                                                                    'dist-local': tii.distance_km < 50,
+                                                                    'dist-medium': tii.distance_km >= 50 && tii.distance_km < 150,
+                                                                    'dist-far': tii.distance_km >= 150 && tii.distance_km < 300,
+                                                                    'dist-extreme': tii.distance_km >= 300
+                                                                }"
+                                                                x-text="tii.distance_km.toFixed(0) + ' km'"
+                                                            ></span>
+                                                            <span
+                                                                x-show="tii.snr_max"
+                                                                class="px-2 py-1 rounded text-xs font-bold"
+                                                                :class="{
+                                                                    'snr-excellent': tii.snr_max >= 20,
+                                                                    'snr-good': tii.snr_max >= 10 && tii.snr_max < 20,
+                                                                    'snr-medium': tii.snr_max >= 6 && tii.snr_max < 10,
+                                                                    'snr-bad': tii.snr_max < 6
+                                                                }"
+                                                                x-text="tii.snr_max?.toFixed(1) + ' dB'"
+                                                            ></span>
+                                                            <span
+                                                                x-show="tii.azimuth_deg"
+                                                                class="text-xs text-gray-500 font-mono"
+                                                                x-text="tii.azimuth_deg?.toFixed(0) + '°'"
+                                                            ></span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+
+                                                <div x-show="mux.tii_list.length === 0" class="text-gray-500 text-sm text-center py-4">
+                                                    Aucun TII disponible (base TX non configurée)
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+
+                            <tr x-show="filteredMuxGroups.length === 0">
+                                <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                                    <div class="text-4xl mb-2">📡</div>
+                                    <div>Aucune donnée disponible</div>
+                                    <div class="text-sm mt-1">Vérifiez la configuration du dossier CSV</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Footer -->
+                <div class="px-4 py-3 bg-dab-darker border-t border-dab-border flex items-center justify-between text-xs text-gray-500">
+                    <div>
+                        CSV: <span class="text-gray-400 font-mono" x-text="status.last_csv_file || '—'"></span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span>
+                            <span class="text-dab-green" x-text="muxGroups.length"></span> mux |
+                            <span class="text-dab-purple" x-text="totalTII"></span> émetteurs
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAP TAB -->
+        <div x-show="activeTab === 'map'" x-cloak>
+            <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
+                <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-between">
+                    <h2 class="font-semibold text-white flex items-center gap-2">
+                        <span>🗺️</span> Carte des réceptions
+                    </h2>
+                    <div class="flex items-center gap-6 text-sm">
+                        <span class="flex items-center gap-2">
+                            <span class="w-4 h-4 bg-dab-blue rounded-full"></span>
+                            <span class="text-gray-400">Récepteur (RX)</span>
+                        </span>
+                        <span class="flex items-center gap-2">
+                            <span class="w-4 h-4 bg-dab-red rounded-full"></span>
+                            <span class="text-gray-400">Émetteurs (TX)</span>
+                        </span>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <!-- CONFIG TAB -->
+        <div x-show="activeTab === 'config'" x-cloak>
+            <div class="grid lg:grid-cols-2 gap-6">
+
+                <!-- RX Position -->
+                <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border">
+                        <h2 class="font-semibold text-white flex items-center gap-2">
+                            <span>📍</span> Position du récepteur
+                        </h2>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Nom</label>
+                            <input type="text" x-model="configForm.rx.name"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 focus:border-dab-blue focus:outline-none">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Latitude</label>
+                                <input type="number" step="0.0001" x-model="configForm.rx.lat"
+                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Longitude</label>
+                                <input type="number" step="0.0001" x-model="configForm.rx.lon"
+                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Paths -->
+                <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border">
+                        <h2 class="font-semibold text-white flex items-center gap-2">
+                            <span>📁</span> Chemins des fichiers
+                        </h2>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Dossier CSV AbracaDABra</label>
+                            <input type="text" x-model="configForm.paths.csv_dir"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono text-sm focus:border-dab-blue focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Base TX (dab-tx-list.csv)</label>
+                            <input type="text" x-model="configForm.paths.tx_db_path"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono text-sm focus:border-dab-blue focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Telegram -->
+                <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-between">
+                        <h2 class="font-semibold text-white flex items-center gap-2">
+                            <span>📱</span> Bot Telegram
+                        </h2>
+                        <button
+                            @click="configForm.telegram.enabled = !configForm.telegram.enabled"
+                            class="relative w-12 h-6 rounded-full transition-colors"
+                            :class="configForm.telegram.enabled ? 'bg-dab-green' : 'bg-dab-border'"
+                        >
+                            <span
+                                :class="configForm.telegram.enabled ? 'translate-x-6' : 'translate-x-1'"
+                                class="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                            ></span>
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Token du bot</label>
+                            <input type="password" x-model="configForm.telegram.token"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono text-sm focus:border-dab-blue focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Chat IDs autorisés</label>
+                            <input type="text" x-model="configForm.telegram.allowed_chats" placeholder="123456,789012"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono text-sm focus:border-dab-blue focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FTP -->
+                <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden">
+                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-between">
+                        <h2 class="font-semibold text-white flex items-center gap-2">
+                            <span>📤</span> Upload FTP
+                        </h2>
+                        <button
+                            @click="configForm.ftp.enabled = !configForm.ftp.enabled"
+                            class="relative w-12 h-6 rounded-full transition-colors"
+                            :class="configForm.ftp.enabled ? 'bg-dab-green' : 'bg-dab-border'"
+                        >
+                            <span
+                                :class="configForm.ftp.enabled ? 'translate-x-6' : 'translate-x-1'"
+                                class="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform"
+                            ></span>
+                        </button>
+                    </div>
+                    <div class="p-4 space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Serveur</label>
+                                <input type="text" x-model="configForm.ftp.server"
+                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-sm text-gray-400 mb-1">Utilisateur</label>
+                                <input type="text" x-model="configForm.ftp.username"
+                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Mot de passe</label>
+                            <input type="password" x-model="configForm.ftp.password"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                        </div>
+                        <button
+                            @click="testFtp()"
+                            class="px-4 py-2 bg-dab-dark hover:bg-dab-border border border-dab-border rounded-lg text-sm transition-colors"
+                        >
+                            🔌 Tester la connexion
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button -->
+            <div class="mt-6 flex justify-end">
+                <button
+                    @click="saveConfig()"
+                    class="px-6 py-3 bg-dab-green hover:bg-dab-green/80 text-black font-bold rounded-lg transition-colors"
+                >
+                    💾 Enregistrer la configuration
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast -->
+    <div
+        x-show="toast.show"
+        x-transition:enter="transition ease-out duration-300"
+        x-transition:enter-start="opacity-0 translate-y-2"
+        x-transition:enter-end="opacity-100 translate-y-0"
+        x-transition:leave="transition ease-in duration-200"
+        x-transition:leave-start="opacity-100 translate-y-0"
+        x-transition:leave-end="opacity-0 translate-y-2"
+        class="fixed bottom-6 right-6 px-4 py-3 rounded-lg shadow-lg border"
+        :class="{
+            'bg-dab-green/20 border-dab-green text-dab-green': toast.type === 'success',
+            'bg-dab-red/20 border-dab-red text-dab-red': toast.type === 'error',
+            'bg-dab-blue/20 border-dab-blue text-dab-blue': toast.type === 'info'
+        }"
+    >
+        <span x-text="toast.message"></span>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
