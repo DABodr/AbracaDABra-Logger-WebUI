@@ -49,6 +49,13 @@ function appData() {
             type: 'info',
         },
 
+        // TII File Validation
+        tiiValidation: {
+            show: false,
+            valid: false,
+            message: '',
+        },
+
         // Computed
         get filteredMuxGroups() {
             if (!this.filterText) return this.muxGroups;
@@ -321,6 +328,39 @@ function appData() {
                 }
             } catch (error) {
                 this.showToast('Erreur de connexion', 'error');
+            }
+        },
+
+        async validateTiiFile() {
+            try {
+                const response = await fetch('/api/config/validate-tii-file', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        path: this.configForm.paths.tx_db_path,
+                    }),
+                });
+
+                const result = await response.json();
+
+                this.tiiValidation = {
+                    show: true,
+                    valid: result.valid,
+                    message: result.message,
+                };
+
+                if (result.valid) {
+                    this.showToast('Fichier TII valide', 'success');
+                } else {
+                    this.showToast('Fichier TII invalide: ' + result.message, 'error');
+                }
+            } catch (error) {
+                this.tiiValidation = {
+                    show: true,
+                    valid: false,
+                    message: 'Erreur de vérification',
+                };
+                this.showToast('Erreur lors de la vérification du fichier', 'error');
             }
         },
 

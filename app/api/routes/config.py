@@ -232,6 +232,42 @@ async def update_paths_config(request: PathsConfigRequest):
     return {"success": True}
 
 
+@router.post("/validate-tii-file")
+async def validate_tii_file(data: dict) -> dict:
+    """Validate TII file path."""
+    filepath = data.get("path", "")
+
+    if not filepath:
+        return {"valid": False, "message": "Chemin vide"}
+
+    path = Path(filepath)
+
+    if not path.exists():
+        return {"valid": False, "message": "Fichier non trouvé"}
+
+    if not path.is_file():
+        return {"valid": False, "message": "Ce n'est pas un fichier"}
+
+    if path.suffix.lower() != ".csv":
+        return {"valid": False, "message": "Doit être un fichier CSV"}
+
+    try:
+        # Try to read first line to validate CSV format
+        with open(path, 'r', encoding='utf-8') as f:
+            first_line = f.readline()
+            if not first_line:
+                return {"valid": False, "message": "Fichier vide"}
+
+        return {
+            "valid": True,
+            "message": "Fichier valide",
+            "size": path.stat().st_size,
+            "modified": path.stat().st_mtime
+        }
+    except Exception as e:
+        return {"valid": False, "message": f"Erreur de lecture: {str(e)}"}
+
+
 @router.get("/rx")
 async def get_rx_config():
     """Get RX location configuration."""
