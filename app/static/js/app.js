@@ -49,11 +49,15 @@ function appData() {
             type: 'info',
         },
 
-        // TII File Validation
-        tiiValidation: {
+        // File Browser
+        fileBrowser: {
             show: false,
-            valid: false,
-            message: '',
+            mode: 'dir',  // 'dir' or 'file'
+            filterExt: null,
+            currentPath: '',
+            items: [],
+            target: null,  // 'csv_dir' or 'tx_db_path'
+            title: '',
         },
 
         // Computed
@@ -250,12 +254,6 @@ function appData() {
                     weight: 1,
                     fillOpacity: 0.9,
                 }).bindPopup(this.buildTXPopup(tx))
-                  .bindTooltip(tx.tii_code, {
-                      permanent: true,
-                      direction: 'top',
-                      offset: [0, -10],
-                      className: 'tii-label'
-                  })
                   .addTo(this.map);
 
                 this.txMarkers.push(marker);
@@ -331,44 +329,83 @@ function appData() {
             }
         },
 
-        async validateTiiFile() {
-            try {
-                const response = await fetch('/api/config/validate-tii-file', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        path: this.configForm.paths.tx_db_path,
-                    }),
-                });
-
-                const result = await response.json();
-
-                this.tiiValidation = {
-                    show: true,
-                    valid: result.valid,
-                    message: result.message,
-                };
-
-                if (result.valid) {
-                    this.showToast('Fichier TII valide', 'success');
-                } else {
-                    this.showToast('Fichier TII invalide: ' + result.message, 'error');
-                }
-            } catch (error) {
-                this.tiiValidation = {
-                    show: true,
-                    valid: false,
-                    message: 'Erreur de vérification',
-                };
-                this.showToast('Erreur lors de la vérification du fichier', 'error');
-            }
-        },
-
         showToast(message, type = 'info') {
             this.toast = { show: true, message, type };
             setTimeout(() => {
                 this.toast.show = false;
             }, 3000);
+        },
+
+        async openFileBrowser(target, mode = 'dir', filterExt = null) {
+            this.fileBrowser.target = target;
+            this.fileBrowser.mode = mode;
+            this.fileBrowser.filterExt = filterExt;
+            this.fileBrowser.title = mode === 'dir' ? 'Sélectionner un dossier' : 'Sélectionner un fichier';
+
+            // Start from current value or home
+            let startPath = '~';
+            if (target === 'csv_dir' && this.configForm.paths.csv_dir) {
+                startPath = this.configForm.paths.csv_dir;
+            } else if (target === 'tx_db_path' && this.configForm.paths.tx_db_path) {
+                startPath = this.configForm.paths.tx_db_path;
+            }
+
+            await this.browsePath(startPath);
+            this.fileBrowser.show = true;
+        },
+
+        async browsePath(path) {
+            try {
+                const params = new URLSearchParams({
+                    path: path,
+                    mode: this.fileBrowser.mode,
+                });
+                if (this.fileBrowser.filterExt) {
+                    params.append('filter_ext', this.fileBrowser.filterExt);
+                }
+
+                const response = await fetch(`/api/config/browse?${params}`);
+                const data = await response.json();
+
+                this.fileBrowser.currentPath = data.current_path;
+                this.fileBrowser.items = data.items;
+            } catch (error) {
+                console.error('Browse failed:', error);
+                this.showToast('Erreur lors de la navigation', 'error');
+            }
+        },
+
+        async selectBrowserItem(item) {
+            if (item.is_dir) {
+                // Navigate into directory
+                await this.browsePath(item.path);
+            } else {
+                // Select file
+                this.selectBrowserPath(item.path);
+            }
+        },
+
+        selectBrowserPath(path = null) {
+            const selectedPath = path || this.fileBrowser.currentPath;
+
+            if (this.fileBrowser.target === 'csv_dir') {
+                this.configForm.paths.csv_dir = selectedPath;
+            } else if (this.fileBrowser.target === 'tx_db_path') {
+                this.configForm.paths.tx_db_path = selectedPath;
+            }
+
+            this.fileBrowser.show = false;
+        },
+
+        closeBrowser() {
+            this.fileBrowser.show = false;
+        },
+
+        formatFileSize(bytes) {
+            if (bytes === null) return '';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
     };
 }

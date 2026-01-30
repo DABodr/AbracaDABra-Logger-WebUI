@@ -136,15 +136,64 @@ class CSVCache:
 _csv_cache = CSVCache()
 
 
+def extract_date_from_filename(filename: str) -> datetime | None:
+    """Extract date from AbracaDABra CSV filename.
+
+    Formats supported:
+    - YYYY-MM-DD_HHMMSS.csv (e.g., 2026-01-29_174343.csv)
+    - YYYY-MM-DD_HH-MM-SS.csv
+    """
+    # Try format: YYYY-MM-DD_HHMMSS
+    match = re.match(r"(\d{4}-\d{2}-\d{2})_(\d{6})\.csv$", filename)
+    if match:
+        try:
+            date_str = match.group(1)
+            time_str = match.group(2)
+            return datetime.strptime(f"{date_str}_{time_str}", "%Y-%m-%d_%H%M%S")
+        except ValueError:
+            pass
+
+    # Try format: YYYY-MM-DD_HH-MM-SS
+    match = re.match(r"(\d{4}-\d{2}-\d{2})_(\d{2}-\d{2}-\d{2})\.csv$", filename)
+    if match:
+        try:
+            date_str = match.group(1)
+            time_str = match.group(2).replace("-", "")
+            return datetime.strptime(f"{date_str}_{time_str}", "%Y-%m-%d_%H%M%S")
+        except ValueError:
+            pass
+
+    return None
+
+
 def choose_latest_abraca_csv(csv_dir: Path) -> Path | None:
     """Find the latest valid AbracaDABra CSV file.
 
+    Sorts by date extracted from filename (YYYY-MM-DD_HHMMSS.csv format).
+    Falls back to file modification time if no date in filename.
     Looks for CSV files with required columns: Label, Channel, Location, SNR [dB]
     """
     if not csv_dir.exists():
         return None
 
-    files = sorted(csv_dir.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    csv_files = list(csv_dir.glob("*.csv"))
+
+    # Sort by date in filename (newest first), then by mtime as fallback
+    def sort_key(p: Path) -> tuple:
+        # Skip TX database
+        if p.name.lower() == "dab-tx-list.csv":
+            return (datetime.min, 0)
+
+        file_date = extract_date_from_filename(p.name)
+        if file_date:
+            return (file_date, 1)  # 1 = has date in name (preferred)
+        else:
+            try:
+                return (datetime.fromtimestamp(p.stat().st_mtime), 0)
+            except Exception:
+                return (datetime.min, 0)
+
+    files = sorted(csv_files, key=sort_key, reverse=True)
 
     for f in files[:20]:
         # Skip TX database if it's in the same directory

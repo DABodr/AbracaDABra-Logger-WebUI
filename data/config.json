@@ -16,7 +16,7 @@
   "paths": {
     "csv_dir": "/home/odr/Téléchargements/AbracaDABra-Logger-WebUI",
     "tx_db_path": "/home/odr/.cache/AbracaDABra/TII/dab-tx-list.csv",
-    "out_dir": "/home/odr/Documents/AbracadradabExport"
+    "out_dir": ""
   },
   "rx": {
     "name": "My Receiver",

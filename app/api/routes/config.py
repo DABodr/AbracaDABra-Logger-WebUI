@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ftplib
+import os
 from pathlib import Path
+from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from ...config import (
     get_config,
@@ -232,42 +234,6 @@ async def update_paths_config(request: PathsConfigRequest):
     return {"success": True}
 
 
-@router.post("/validate-tii-file")
-async def validate_tii_file(data: dict) -> dict:
-    """Validate TII file path."""
-    filepath = data.get("path", "")
-
-    if not filepath:
-        return {"valid": False, "message": "Chemin vide"}
-
-    path = Path(filepath)
-
-    if not path.exists():
-        return {"valid": False, "message": "Fichier non trouvé"}
-
-    if not path.is_file():
-        return {"valid": False, "message": "Ce n'est pas un fichier"}
-
-    if path.suffix.lower() != ".csv":
-        return {"valid": False, "message": "Doit être un fichier CSV"}
-
-    try:
-        # Try to read first line to validate CSV format
-        with open(path, 'r', encoding='utf-8') as f:
-            first_line = f.readline()
-            if not first_line:
-                return {"valid": False, "message": "Fichier vide"}
-
-        return {
-            "valid": True,
-            "message": "Fichier valide",
-            "size": path.stat().st_size,
-            "modified": path.stat().st_mtime
-        }
-    except Exception as e:
-        return {"valid": False, "message": f"Erreur de lecture: {str(e)}"}
-
-
 @router.get("/rx")
 async def get_rx_config():
     """Get RX location configuration."""
@@ -290,3 +256,75 @@ async def update_rx_config(request: RXConfigRequest):
     )
     update_config(config)
     return {"success": True}
+
+
+@router.get("/browse")
+async def browse_filesystem(
+    path: str = Query(default="~", description="Starting path"),
+    mode: str = Query(default="dir", description="Mode: 'dir' for directories, 'file' for files"),
+    filter_ext: Optional[str] = Query(default=None, description="File extension filter (e.g., '.csv')")
+):
+    """Browse filesystem to select directories or files."""
+    try:
+        # Expand ~ to home directory
+        browse_path = Path(path).expanduser().resolve()
+
+        if not browse_path.exists():
+            # Fall back to home directory
+            browse_path = Path.home()
+
+        if not browse_path.is_dir():
+            browse_path = browse_path.parent
+
+        items = []
+
+        # Add parent directory entry if not at root
+        if browse_path.parent != browse_path:
+            items.append({
+                "name": "..",
+                "path": str(browse_path.parent),
+                "is_dir": True,
+                "size": None,
+            })
+
+        # List directory contents
+        try:
+            entries = sorted(browse_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+        except PermissionError:
+            entries = []
+
+        for entry in entries:
+            # Skip hidden files
+            if entry.name.startswith("."):
+                continue
+
+            try:
+                is_dir = entry.is_dir()
+
+                # Apply filter based on mode
+                if mode == "dir" and not is_dir:
+                    # In directory mode, also show files matching filter for selection
+                    if filter_ext and not entry.name.endswith(filter_ext):
+                        continue
+                elif mode == "file" and not is_dir:
+                    # In file mode, filter by extension if specified
+                    if filter_ext and not entry.name.endswith(filter_ext):
+                        continue
+
+                items.append({
+                    "name": entry.name,
+                    "path": str(entry),
+                    "is_dir": is_dir,
+                    "size": entry.stat().st_size if not is_dir else None,
+                })
+            except (PermissionError, OSError):
+                continue
+
+        return {
+            "current_path": str(browse_path),
+            "items": items,
+            "can_select": mode == "dir" or (mode == "file" and any(not i["is_dir"] for i in items)),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
