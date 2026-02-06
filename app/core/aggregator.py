@@ -198,8 +198,10 @@ def _create_mux_group_with_tx(
         )
         tii_list.append(tii_detail)
 
-    # Sort TII by distance
-    tii_list.sort(key=lambda t: t.distance_km)
+    # Sort TII by level (reference site at 0.0 dB first, then by decreasing level)
+    # Sites with no level_db go at the end
+    # Use reverse=True because 0.0 > -5 > -10 (we want highest/least negative first)
+    tii_list.sort(key=lambda t: (t.level_db is None, -(t.level_db if t.level_db is not None else -999)))
 
     # Get global SNR stats
     snr_col = "SNR [dB]" if "SNR [dB]" in group.columns else "snr"
