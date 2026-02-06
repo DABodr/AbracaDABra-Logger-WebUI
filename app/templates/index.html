@@ -264,11 +264,14 @@
             <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
                 <div class="max-h-[600px] overflow-y-auto">
                     <!-- Header - Desktop -->
-                    <div class="hidden md:grid grid-cols-[60px_1fr_100px_80px_80px_110px] bg-dab-darker text-gray-400 text-xs uppercase tracking-wider sticky top-0 z-10">
+                    <div class="hidden md:grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] bg-dab-darker text-gray-400 text-xs uppercase tracking-wider sticky top-0 z-10">
                         <div class="px-3 py-3 font-semibold">Bloc</div>
+                        <div class="px-2 py-3 font-semibold text-center">EID</div>
                         <div class="px-3 py-3 font-semibold">Ensemble</div>
-                        <div class="px-3 py-3 font-semibold text-right">Fréq.</div>
-                        <div class="px-3 py-3 font-semibold text-center">SNR</div>
+                        <div class="px-2 py-3 font-semibold text-center">Services</div>
+                        <div class="px-2 py-3 font-semibold text-center">SNR Min</div>
+                        <div class="px-2 py-3 font-semibold text-center">SNR Max</div>
+                        <div class="px-2 py-3 font-semibold text-center">SNR Live</div>
                         <div class="px-3 py-3 font-semibold text-center">Sites</div>
                         <div class="px-3 py-3 font-semibold text-center">Date</div>
                     </div>
@@ -277,7 +280,7 @@
                     <div class="md:hidden grid grid-cols-[38px_1fr_42px_34px_56px] bg-dab-darker text-gray-400 text-[10px] uppercase tracking-wider sticky top-0 z-10">
                         <div class="px-1 py-2 font-semibold">Bloc</div>
                         <div class="px-1 py-2 font-semibold">Ensemble</div>
-                        <div class="py-2 font-semibold text-center">SNR</div>
+                        <div class="py-2 font-semibold text-center">Live</div>
                         <div class="py-2 font-semibold text-center">TX</div>
                         <div class="px-1 py-2 font-semibold text-right">Date</div>
                     </div>
@@ -288,22 +291,37 @@
                             <div>
                                 <!-- Main Row - Desktop -->
                                 <div
-                                    class="hidden md:grid grid-cols-[60px_1fr_100px_80px_80px_110px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
+                                    class="hidden md:grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
                                     @click="toggleTII(mux.bloc + '-' + mux.ensemble)"
                                 >
                                     <div class="px-3 py-3">
                                         <span class="font-mono font-bold text-dab-blue" x-text="mux.bloc"></span>
                                     </div>
+                                    <div class="px-2 py-3 text-center">
+                                        <span class="font-mono text-xs text-gray-400" x-text="mux.eid"></span>
+                                    </div>
                                     <div class="px-3 py-3">
                                         <span class="font-semibold text-white text-sm" x-text="mux.ensemble"></span>
-                                        <span class="ml-1 text-xs text-gray-500 font-mono" x-text="'(' + mux.eid + ')'"></span>
                                     </div>
-                                    <div class="px-3 py-3 text-right">
-                                        <span class="font-mono text-gray-300 text-sm" x-text="mux.frequency_mhz.toFixed(3)"></span>
+                                    <div class="px-2 py-3 text-center">
+                                        <span class="text-gray-400 text-xs" x-text="mux.station_count"></span>
                                     </div>
-                                    <div class="px-3 py-3 text-center">
+                                    <div class="px-2 py-3 text-center">
                                         <span
-                                            x-show="mux.snr_max"
+                                            x-show="mux.snr_min !== null && mux.snr_min !== undefined"
+                                            class="px-1.5 py-0.5 rounded text-xs font-bold"
+                                            :class="{
+                                                'snr-excellent': mux.snr_min >= 20,
+                                                'snr-good': mux.snr_min >= 10 && mux.snr_min < 20,
+                                                'snr-medium': mux.snr_min >= 6 && mux.snr_min < 10,
+                                                'snr-bad': mux.snr_min < 6
+                                            }"
+                                            x-text="mux.snr_min?.toFixed(1)"
+                                        ></span>
+                                    </div>
+                                    <div class="px-2 py-3 text-center">
+                                        <span
+                                            x-show="mux.snr_max !== null && mux.snr_max !== undefined"
                                             class="px-1.5 py-0.5 rounded text-xs font-bold"
                                             :class="{
                                                 'snr-excellent': mux.snr_max >= 20,
@@ -313,6 +331,24 @@
                                             }"
                                             x-text="mux.snr_max?.toFixed(1)"
                                         ></span>
+                                    </div>
+                                    <div class="px-2 py-3 text-center">
+                                        <span
+                                            x-show="mux.snr_live !== null && mux.snr_live !== undefined"
+                                            class="px-1.5 py-0.5 rounded text-xs font-bold"
+                                            :class="{
+                                                'snr-excellent': mux.snr_live >= 20,
+                                                'snr-good': mux.snr_live >= 10 && mux.snr_live < 20,
+                                                'snr-medium': mux.snr_live >= 6 && mux.snr_live < 10,
+                                                'snr-bad': mux.snr_live < 6
+                                            }"
+                                            x-text="mux.snr_live?.toFixed(1)"
+                                        ></span>
+                                        <span
+                                            x-show="mux.snr_live === null || mux.snr_live === undefined"
+                                            class="px-1.5 py-0.5 rounded text-xs font-bold bg-dab-red text-white"
+                                            title="Absent du dernier scan"
+                                        >0</span>
                                     </div>
                                     <div class="px-3 py-3 text-center">
                                         <span class="text-dab-purple font-semibold text-sm" x-text="mux.tx_site_count"></span>
@@ -348,16 +384,20 @@
                                     </div>
                                     <div class="py-2 text-center">
                                         <span
-                                            x-show="mux.snr_max"
+                                            x-show="mux.snr_live !== null && mux.snr_live !== undefined"
                                             class="px-1 py-0.5 rounded text-[10px] font-bold"
                                             :class="{
-                                                'snr-excellent': mux.snr_max >= 20,
-                                                'snr-good': mux.snr_max >= 10 && mux.snr_max < 20,
-                                                'snr-medium': mux.snr_max >= 6 && mux.snr_max < 10,
-                                                'snr-bad': mux.snr_max < 6
+                                                'snr-excellent': mux.snr_live >= 20,
+                                                'snr-good': mux.snr_live >= 10 && mux.snr_live < 20,
+                                                'snr-medium': mux.snr_live >= 6 && mux.snr_live < 10,
+                                                'snr-bad': mux.snr_live < 6
                                             }"
-                                            x-text="mux.snr_max?.toFixed(0)"
+                                            x-text="mux.snr_live?.toFixed(0)"
                                         ></span>
+                                        <span
+                                            x-show="mux.snr_live === null || mux.snr_live === undefined"
+                                            class="px-1 py-0.5 rounded text-[10px] font-bold bg-dab-red text-white"
+                                        >0</span>
                                     </div>
                                     <div class="py-2 text-center">
                                         <span class="text-dab-purple font-semibold text-[10px]" x-text="mux.tx_site_count"></span>
@@ -388,51 +428,59 @@
                                     <div class="hidden md:block px-2 py-2">
                                         <div class="grid gap-1">
                                             <template x-for="tii in mux.tii_list" :key="tii.tii_code">
-                                                <div class="grid grid-cols-[60px_1fr_100px_80px_80px_110px] items-center py-2 bg-dab-card/80 rounded-lg border border-dab-border hover:border-dab-blue/30 transition-colors">
+                                                <div class="grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] items-center py-2 bg-dab-card/80 rounded-lg border border-dab-border hover:border-dab-blue/30 transition-colors">
                                                     <div class="px-3 flex items-center gap-2">
                                                         <span class="text-dab-blue text-xs">📍</span>
                                                         <span class="font-mono font-bold text-dab-blue text-sm" x-text="tii.tii_code"></span>
                                                     </div>
+                                                    <div class="px-2 py-3"></div>
                                                     <div class="px-3 truncate">
                                                         <span class="text-white text-sm" x-text="tii.location"></span>
-                                                    </div>
-                                                    <div class="px-3 text-right">
+                                                        <span
+                                                            x-show="tii.erp_kw"
+                                                            class="text-xs text-gray-400 ml-1"
+                                                            x-text="tii.erp_kw ? '(' + tii.erp_kw + ' kW)' : ''"
+                                                        ></span>
                                                         <span
                                                             x-show="tii.azimuth_deg"
-                                                            class="text-xs text-gray-500 font-mono"
-                                                            x-text="tii.azimuth_deg?.toFixed(0) + '°'"
+                                                            class="text-xs text-gray-400 ml-1"
+                                                            x-text="tii.azimuth_deg ? '- azimut: ' + tii.azimuth_deg.toFixed(0) + '°' : ''"
                                                         ></span>
                                                     </div>
-                                                    <div class="px-3 text-center">
+                                                    <div></div>
+                                                    <!-- Level column -->
+                                                    <div class="px-2 text-center">
                                                         <span
-                                                            x-show="tii.snr_max"
-                                                            class="px-1.5 py-0.5 rounded text-xs font-bold"
+                                                            x-show="tii.level_db !== null && tii.level_db !== undefined"
+                                                            class="text-xs font-mono"
                                                             :class="{
-                                                                'snr-excellent': tii.snr_max >= 20,
-                                                                'snr-good': tii.snr_max >= 10 && tii.snr_max < 20,
-                                                                'snr-medium': tii.snr_max >= 6 && tii.snr_max < 10,
-                                                                'snr-bad': tii.snr_max < 6
+                                                                'text-green-400': tii.level_db >= -5,
+                                                                'text-yellow-400': tii.level_db >= -15 && tii.level_db < -5,
+                                                                'text-orange-400': tii.level_db < -15
                                                             }"
-                                                            x-text="tii.snr_max?.toFixed(1)"
+                                                            x-text="tii.level_db?.toFixed(1) + ' dB'"
                                                         ></span>
                                                     </div>
+                                                    <div></div>
+                                                    <div></div>
                                                     <div class="px-3 text-center">
                                                         <span
-                                                            class="px-1.5 py-0.5 rounded text-xs font-bold text-white"
+                                                            class="px-1.5 py-0.5 rounded text-xs font-bold"
                                                             :class="{
                                                                 'dist-local': tii.distance_km < 50,
                                                                 'dist-medium': tii.distance_km >= 50 && tii.distance_km < 150,
                                                                 'dist-far': tii.distance_km >= 150 && tii.distance_km < 300,
                                                                 'dist-extreme': tii.distance_km >= 300
                                                             }"
-                                                            x-text="tii.distance_km.toFixed(0) + ' km'"
+                                                            x-text="tii.distance_km.toFixed(0)"
                                                         ></span>
+                                                        <span class="text-xs text-white ml-0.5">km</span>
                                                     </div>
                                                     <div class="px-3 text-center">
                                                         <span
-                                                            x-show="tii.erp_kw"
-                                                            class="text-xs text-gray-400"
-                                                            x-text="tii.erp_kw ? tii.erp_kw + ' kW' : ''"
+                                                            x-show="tii.last_rx_time"
+                                                            class="text-xs text-gray-400 font-mono"
+                                                            x-text="tii.last_rx_time ? new Date(tii.last_rx_time).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'}) : '—'"
                                                         ></span>
                                                     </div>
                                                 </div>
@@ -444,38 +492,37 @@
                                     <div class="md:hidden px-1 py-1">
                                         <div class="grid gap-0.5">
                                             <template x-for="tii in mux.tii_list" :key="tii.tii_code">
-                                                <div class="grid grid-cols-[38px_1fr_42px_34px_56px] items-center py-1.5 bg-dab-card/80 rounded border border-dab-border">
-                                                    <div class="px-1 text-[10px] font-bold text-dab-blue font-mono" x-text="tii.tii_code"></div>
-                                                    <div class="px-1 truncate">
-                                                        <span class="text-white text-[10px]" x-text="tii.location"></span>
+                                                <div class="bg-dab-card/80 rounded border border-dab-border p-2">
+                                                    <div class="flex items-start gap-2 mb-1">
+                                                        <span class="text-[10px] font-bold text-dab-blue font-mono" x-text="tii.tii_code"></span>
+                                                        <div class="flex-1 min-w-0">
+                                                            <div class="text-white text-[10px] truncate" x-text="tii.location"></div>
+                                                            <div x-show="tii.erp_kw" class="text-[9px] text-gray-400" x-text="tii.erp_kw ? tii.erp_kw + ' kW' : ''"></div>
+                                                        </div>
                                                     </div>
-                                                    <div class="text-center">
+                                                    <div class="flex items-center gap-2 text-[9px]">
                                                         <span
                                                             x-show="tii.snr_max"
-                                                            class="px-1 py-0.5 rounded text-[9px] font-bold"
+                                                            class="px-1 py-0.5 rounded font-bold"
                                                             :class="{
                                                                 'snr-excellent': tii.snr_max >= 20,
                                                                 'snr-good': tii.snr_max >= 10 && tii.snr_max < 20,
                                                                 'snr-medium': tii.snr_max >= 6 && tii.snr_max < 10,
                                                                 'snr-bad': tii.snr_max < 6
                                                             }"
-                                                            x-text="tii.snr_max?.toFixed(0)"
+                                                            x-text="'SNR ' + tii.snr_max?.toFixed(0)"
                                                         ></span>
-                                                    </div>
-                                                    <div class="text-center">
                                                         <span
-                                                            class="text-[9px] font-bold text-white"
+                                                            class="font-bold text-white"
                                                             :class="{
                                                                 'dist-local': tii.distance_km < 50,
                                                                 'dist-medium': tii.distance_km >= 50 && tii.distance_km < 150,
                                                                 'dist-far': tii.distance_km >= 150 && tii.distance_km < 300,
                                                                 'dist-extreme': tii.distance_km >= 300
                                                             }"
-                                                            x-text="tii.distance_km.toFixed(0) + 'km'"
+                                                            x-text="tii.distance_km.toFixed(0) + ' km'"
                                                         ></span>
-                                                    </div>
-                                                    <div class="px-1 text-right">
-                                                        <span class="text-[9px] text-gray-500 font-mono" x-text="tii.azimuth_deg ? tii.azimuth_deg.toFixed(0) + '°' : ''"></span>
+                                                        <span class="text-gray-500 font-mono" x-text="tii.azimuth_deg ? tii.azimuth_deg.toFixed(0) + '°' : ''"></span>
                                                     </div>
                                                 </div>
                                             </template>

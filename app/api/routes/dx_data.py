@@ -51,11 +51,17 @@ def _get_mux_groups() -> tuple[list[MuxGroup], str | None]:
             # Parse raw for services count
             raw_df, _, _ = parse_csv(csv_file, use_cache=True)
 
+            # Get TX database for EID filtering
+            from ...core.tx_database import get_tx_database
+            tx_db = get_tx_database()
+            tx_df = tx_db.get_dataframe()
+
             mux_groups = aggregate_to_mux_groups(
                 matched_df=matched_df,
                 processed_df=processed_df,
                 raw_df=raw_df,
                 time_col=time_col,
+                tx_df=tx_df,
             )
         else:
             # No TX database - parse CSV only

@@ -32,23 +32,23 @@ def prepare_rx_for_matching(raw_df: pd.DataFrame) -> pd.DataFrame:
     elif "eid" not in df.columns:
         df["eid"] = ""
 
-    # Ensure main/sub are int
+    # Parse main/sub as nullable integers - do NOT fillna(0) to avoid inventing TII values
     if "Main" in df.columns:
-        df["main"] = pd.to_numeric(df["Main"], errors="coerce").fillna(0).astype(int)
+        df["main"] = pd.to_numeric(df["Main"], errors="coerce").astype("Int64")
     else:
-        df["main"] = 0
+        df["main"] = pd.NA
 
     if "Sub" in df.columns:
-        df["sub"] = pd.to_numeric(df["Sub"], errors="coerce").fillna(0).astype(int)
+        df["sub"] = pd.to_numeric(df["Sub"], errors="coerce").astype("Int64")
     else:
-        df["sub"] = 0
+        df["sub"] = pd.NA
 
-    # Filter rows with valid matching keys
+    # Filter rows with valid matching keys (main=0 is valid, so use notna())
     df = df[
         (df["block"].str.len() > 0) &
         (df["eid"].str.len() == 4) &
-        (df["main"] > 0) &
-        (df["sub"] >= 0)
+        df["main"].notna() &
+        df["sub"].notna()
     ].copy()
 
     return df

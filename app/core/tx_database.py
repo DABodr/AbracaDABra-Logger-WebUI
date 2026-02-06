@@ -34,18 +34,16 @@ def split_tii_to_main_sub(tii_val) -> tuple[int | None, int | None]:
 
 
 def format_tii_code(main: int, sub: int) -> str:
-    """Format main/sub as TII code string.
+    """Format main/sub as TII code string in decimal format.
+
+    TII codes are always formatted as MMSS in decimal (e.g., main=67 sub=2 -> "6702").
 
     Examples:
         (1, 1) -> '0101'
         (12, 4) -> '1204'
-        (24, 1) -> '24A1' (using hex for main > 15)
+        (67, 2) -> '6702'
     """
-    if main <= 15:
-        return f"{main:02d}{sub:02d}"
-    else:
-        # Use hex notation for main > 15
-        return f"{main:02X}{sub:02d}"
+    return f"{main:02d}{sub:02d}"
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

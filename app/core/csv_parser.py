@@ -246,9 +246,10 @@ def parse_csv(csv_path: Path, use_cache: bool = True) -> tuple[pd.DataFrame, pd.
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # Parse Main/Sub as nullable integers - do NOT fillna(0) to avoid inventing TII values
     for col in ["Main", "Sub"]:
         if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+            df[col] = pd.to_numeric(df[col], errors="coerce").astype("Int64")
 
     # Parse time column
     df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
@@ -263,9 +264,10 @@ def parse_csv(csv_path: Path, use_cache: bool = True) -> tuple[pd.DataFrame, pd.
     raw_df = df.copy()
 
     # Deduplicate: keep best SNR per (Location, Channel, Label)
+    # Use sort + drop_duplicates instead of idxmax to handle NaN gracefully
     group_cols = ["Location", "Channel", "Label"]
-    idx_best = df.groupby(group_cols)["SNR [dB]"].idxmax()
-    df_best = df.loc[idx_best].copy()
+    df_sorted = df.sort_values("SNR [dB]", ascending=False, na_position="last")
+    df_best = df_sorted.drop_duplicates(subset=group_cols, keep="first").copy()
 
     # Add SNR statistics
     stats = df.groupby(group_cols)["SNR [dB]"].agg(SNR_min="min", SNR_max="max").reset_index()
