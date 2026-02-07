@@ -181,10 +181,11 @@ def _create_mux_group_with_tx(
         else:
             tii_time = None
 
-        # Determine if this TII is live (in latest scan)
+        # Determine if this TII is live (received less than 2 hours ago)
         is_live = False
-        if pd.notna(tii_time) and pd.notna(last_time):
-            is_live = (tii_time == last_time)
+        if pd.notna(tii_time):
+            age_seconds = (pd.Timestamp.now() - tii_time).total_seconds()
+            is_live = age_seconds < 7200  # 2h
 
         tii_detail = TIIDetail(
             tii_code=tii_code,
@@ -332,10 +333,11 @@ def _create_mux_group_without_tx(
                 else:
                     tii_time = None
 
-                # Determine if this TII is live (in latest scan)
+                # Determine if this TII is live (received less than 2 hours ago)
                 is_live = False
-                if pd.notna(tii_time) and pd.notna(last_time):
-                    is_live = (tii_time == last_time)
+                if pd.notna(tii_time):
+                    age_seconds = (pd.Timestamp.now() - tii_time).total_seconds()
+                    is_live = age_seconds < 7200  # 2h
 
                 # Create TII detail with "unknown" location
                 tii_detail = TIIDetail(

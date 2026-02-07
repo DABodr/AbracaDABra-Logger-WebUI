@@ -777,12 +777,12 @@
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" x-model="showRecentTX" @change="updateMapMarkersFromData()" class="w-4 h-4 rounded border-gray-600 bg-dab-darker text-green-500 focus:ring-green-500 focus:ring-offset-dab-darker">
                             <span class="w-4 h-4 bg-green-500 rounded-full border border-gray-700"></span>
-                            <span class="text-gray-400">TX Récent</span>
+                            <span class="text-gray-400">TX Récent <span class="text-gray-500 text-xs">(reçu &lt; 2h)</span></span>
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
                             <input type="checkbox" x-model="showOldTX" @change="updateMapMarkersFromData()" class="w-4 h-4 rounded border-gray-600 bg-dab-darker text-red-500 focus:ring-red-500 focus:ring-offset-dab-darker">
                             <span class="w-4 h-4 bg-dab-red rounded-full border border-gray-700"></span>
-                            <span class="text-gray-400">TX Ancien</span>
+                            <span class="text-gray-400">TX Ancien <span class="text-gray-500 text-xs">(reçu &gt; 2h)</span></span>
                         </label>
                     </div>
                 </div>

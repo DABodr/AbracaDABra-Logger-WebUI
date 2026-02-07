@@ -41,7 +41,7 @@ Protégez l'accès à la configuration par un mot de passe avec chiffrement SHA-
 ### Interface Web
 - **Tableau DX** interactif avec regroupement par mux/fréquence
 - **Dropdown TII** cliquable affichant les émetteurs (site, distance, SNR)
-- **Carte Leaflet** avec marqueurs RX (bleu) et TX (rouge/vert)
+- **Carte Leaflet** avec marqueurs RX (bleu) et TX (vert = reçu il y a moins de 2h, rouge = au-delà)
 - **Thème sombre** style FM-DX Webserver
 - **Auto-refresh** configurable (15s à 60min)
 - **Recherche** instantanée dans le tableau
