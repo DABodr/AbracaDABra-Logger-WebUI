@@ -40,9 +40,18 @@
     <style>
         [x-cloak] { display: none !important; }
 
+        html {
+            width: 100%;
+            overflow-x: hidden;
+        }
+
         body {
             background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+            background-attachment: fixed;
+            background-size: cover;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         .glow-green { text-shadow: 0 0 10px #3fb950, 0 0 20px #3fb95080; }
@@ -65,9 +74,158 @@
             width: 100%;
             border-radius: 8px;
             border: 1px solid #30363d;
+            position: relative;
+            /* CRITICAL: Garantir une hauteur même si le parent est caché */
+            min-height: 550px;
         }
 
         .leaflet-container { background: #0d1117; }
+
+        /* Custom DAB popup styles - NO Leaflet modification */
+        .dab-popup {
+            font-family: system-ui;
+            min-width: 650px;
+            max-width: 750px;
+        }
+
+        .dab-popup-header {
+            display: block;
+            background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+            padding: 16px 18px;
+            border-bottom: 1px solid #e1e4e8;
+            border-radius: 12px 12px 0 0;
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        .dab-popup-title {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            white-space: normal !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            line-height: 1.4;
+            word-break: break-word;
+            color: #1a1a1a;
+            letter-spacing: -0.01em;
+        }
+
+        /* Indicateur de statut (puce colorée) */
+        .dab-popup-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-top: 4px;
+            flex-shrink: 0;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5);
+        }
+
+        .dab-popup-subtitle {
+            display: block;
+            font-size: 11px;
+            color: #586069;
+            opacity: 0.85;
+            margin-top: 6px;
+            line-height: 1.3;
+            font-weight: 400;
+        }
+
+        .dab-popup-body {
+            max-height: 320px;
+            overflow-y: auto;
+            background: #fff;
+            border-radius: 0 0 12px 12px;
+        }
+
+        /* Scrollbar stylée (WebKit uniquement, graceful degradation) */
+        .dab-popup-body::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .dab-popup-body::-webkit-scrollbar-track {
+            background: #f1f3f5;
+            border-radius: 0 0 12px 0;
+        }
+
+        .dab-popup-body::-webkit-scrollbar-thumb {
+            background: #c1c8cd;
+            border-radius: 4px;
+        }
+
+        .dab-popup-body::-webkit-scrollbar-thumb:hover {
+            background: #a8b0b6;
+        }
+
+        /* Tableau dans la popup */
+        .dab-popup-body table {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+
+        .dab-popup-body thead {
+            background: #f6f8fa !important;
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .dab-popup-body thead th {
+            color: #24292e !important;
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .dab-popup-body tbody tr {
+            transition: background-color 0.15s ease;
+        }
+
+        .dab-popup-body tbody tr:hover {
+            background-color: #f6f8fa !important;
+        }
+
+        .dab-popup-body tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        /* ========== LEAFLET POPUP CUSTOM STYLING ========== */
+
+        /* Wrapper principal - arrondis et ombre douce */
+        .dab-leaflet-popup .leaflet-popup-content-wrapper {
+            padding: 0;
+            overflow: visible;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+        }
+
+        .dab-leaflet-popup .leaflet-popup-content {
+            margin: 0;
+            width: auto !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        }
+
+        /* Bouton de fermeture élégant */
+        .dab-leaflet-popup .leaflet-popup-close-button {
+            color: #666 !important;
+            font-size: 20px !important;
+            padding: 8px 12px !important;
+            transition: color 0.2s ease;
+        }
+
+        .dab-leaflet-popup .leaflet-popup-close-button:hover {
+            color: #000 !important;
+            background: transparent !important;
+        }
+
+        /* Flèche pointant vers le marker */
+        .dab-leaflet-popup .leaflet-popup-tip {
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        }
 
         .data-table {
             font-size: 13px;
@@ -124,14 +282,23 @@
 
     <!-- Header -->
     <header class="bg-dab-darker/80 backdrop-blur border-b border-dab-border sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3">
+        <div class="w-full md:max-w-7xl md:mx-auto px-2 md:px-4 py-2 md:py-3">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2">
                         <span class="text-3xl">📻</span>
                         <div>
                             <h1 class="text-xl font-bold text-white glow-blue">AbracaDABra Logger</h1>
-                            <p class="text-xs text-gray-500">DAB/DAB+ DX Monitor</p>
+                            <div class="flex items-center justify-between gap-2">
+                                <!-- Mobile: short version -->
+                                <p class="lg:hidden text-[10px] text-gray-500">Monitor DX</p>
+                                <!-- Desktop: full version -->
+                                <p class="hidden lg:block text-xs text-gray-500">DAB/DAB+ DX Monitor</p>
+                                <!-- Last update - Mobile only -->
+                                <p class="lg:hidden text-[9px] text-gray-500 font-mono whitespace-nowrap">
+                                    MAJ: <span x-text="lastUpdate || '—'" class="text-gray-400"></span>
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -165,7 +332,7 @@
                     </div>
 
                     <!-- Last update -->
-                    <div class="text-xs text-gray-500 font-mono">
+                    <div class="hidden lg:block text-xs text-gray-500 font-mono">
                         MAJ: <span x-text="lastUpdate || '—'" class="text-gray-400"></span>
                     </div>
                 </div>
@@ -175,43 +342,43 @@
 
     <!-- Tab Navigation -->
     <nav class="bg-dab-card/50 border-b border-dab-border">
-        <div class="max-w-7xl mx-auto px-4">
-            <div class="flex gap-1 py-2">
+        <div class="w-full md:max-w-7xl md:mx-auto px-1 md:px-4">
+            <div class="flex gap-0.5 md:gap-1 py-1.5 md:py-2">
                 <button
                     @click="activeTab = 'table'"
                     :class="{ 'active': activeTab === 'table' }"
-                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                    class="tab-btn px-2 md:px-4 py-1.5 md:py-2 rounded-md md:rounded-lg text-xs md:text-sm font-medium border border-transparent flex items-center gap-1 md:gap-2"
                 >
-                    <span>📊</span> Tableau DX
+                    <span>📊</span> <span class="hidden sm:inline">Tableau DX</span><span class="sm:hidden">Tableau</span>
                 </button>
                 <button
                     @click="activeTab = 'map'"
                     :class="{ 'active': activeTab === 'map' }"
-                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                    class="tab-btn px-2 md:px-4 py-1.5 md:py-2 rounded-md md:rounded-lg text-xs md:text-sm font-medium border border-transparent flex items-center gap-1 md:gap-2"
                 >
                     <span>🗺️</span> Carte
                 </button>
                 <button
                     @click="activeTab = 'config'"
                     :class="{ 'active': activeTab === 'config' }"
-                    class="tab-btn px-4 py-2 rounded-lg text-sm font-medium border border-transparent flex items-center gap-2"
+                    class="tab-btn px-2 md:px-4 py-1.5 md:py-2 rounded-md md:rounded-lg text-xs md:text-sm font-medium border border-transparent flex items-center gap-1 md:gap-2"
                 >
-                    <span>⚙️</span> Configuration
+                    <span>⚙️</span> Config
                 </button>
             </div>
         </div>
     </nav>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-2 md:px-4 py-3 md:py-6">
+    <main class="w-full md:max-w-7xl md:mx-auto px-0 md:px-4 py-1 md:py-6">
         <!-- Main Container -->
-        <div class="bg-dab-card/50 border border-dab-border rounded-xl p-2 md:p-4">
+        <div class="bg-dab-card/50 border-0 md:border border-dab-border rounded-none md:rounded-xl p-0.5 md:p-4">
 
             <!-- TABLE TAB -->
             <div x-show="activeTab === 'table'" x-cloak>
 
                 <!-- Control Bar -->
-                <div class="bg-dab-darker border border-dab-border rounded-lg p-2 md:p-4 mb-3 flex flex-wrap items-center gap-2 md:gap-4">
+                <div class="bg-dab-darker border border-dab-border rounded-none md:rounded-lg p-2 md:p-4 mb-1 md:mb-3 flex flex-wrap items-center gap-2 md:gap-4">
                 <!-- Search -->
                 <div class="flex-1 min-w-[150px] md:min-w-[250px]">
                     <div class="relative">
@@ -261,10 +428,10 @@
             </div>
 
             <!-- Data Table -->
-            <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
+            <div class="bg-dab-card border border-dab-border rounded-none md:rounded-lg overflow-hidden card-glow">
                 <div class="max-h-[600px] overflow-y-auto">
                     <!-- Header - Desktop -->
-                    <div class="hidden md:grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] bg-dab-darker text-gray-400 text-xs uppercase tracking-wider sticky top-0 z-10">
+                    <div class="hidden md:grid grid-cols-[60px_70px_1fr_80px_70px_70px_70px_80px_110px] bg-dab-darker text-gray-400 text-xs uppercase tracking-wider sticky top-0 z-10">
                         <div class="px-3 py-3 font-semibold">Bloc</div>
                         <div class="px-2 py-3 font-semibold text-center">EID</div>
                         <div class="px-3 py-3 font-semibold">Ensemble</div>
@@ -277,11 +444,11 @@
                     </div>
 
                     <!-- Header - Mobile -->
-                    <div class="md:hidden grid grid-cols-[38px_1fr_42px_34px_56px] bg-dab-darker text-gray-400 text-[10px] uppercase tracking-wider sticky top-0 z-10">
+                    <div class="md:hidden grid grid-cols-[40px_1fr_90px_40px_60px] bg-dab-darker text-gray-400 text-[10px] uppercase tracking-wider sticky top-0 z-10">
                         <div class="px-1 py-2 font-semibold">Bloc</div>
                         <div class="px-1 py-2 font-semibold">Ensemble</div>
-                        <div class="py-2 font-semibold text-center">Live</div>
-                        <div class="py-2 font-semibold text-center">TX</div>
+                        <div class="px-1 py-2 font-semibold text-center">SNR</div>
+                        <div class="px-1 py-2 font-semibold text-center">TX</div>
                         <div class="px-1 py-2 font-semibold text-right">Date</div>
                     </div>
 
@@ -291,7 +458,7 @@
                             <div>
                                 <!-- Main Row - Desktop -->
                                 <div
-                                    class="hidden md:grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
+                                    class="hidden md:grid grid-cols-[60px_70px_1fr_80px_70px_70px_70px_80px_110px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
                                     @click="toggleTII(mux.bloc + '-' + mux.ensemble)"
                                 >
                                     <div class="px-3 py-3">
@@ -373,7 +540,7 @@
 
                                 <!-- Main Row - Mobile -->
                                 <div
-                                    class="md:hidden grid grid-cols-[38px_1fr_42px_34px_56px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
+                                    class="md:hidden grid grid-cols-[40px_1fr_90px_40px_60px] items-center hover:bg-dab-blue/5 cursor-pointer transition-colors"
                                     @click="toggleTII(mux.bloc + '-' + mux.ensemble)"
                                 >
                                     <div class="px-1 py-2">
@@ -382,24 +549,61 @@
                                     <div class="px-1 py-2 truncate">
                                         <span class="font-semibold text-white text-xs" x-text="mux.ensemble"></span>
                                     </div>
-                                    <div class="py-2 text-center">
-                                        <span
-                                            x-show="mux.snr_live !== null && mux.snr_live !== undefined"
-                                            class="px-1 py-0.5 rounded text-[10px] font-bold"
-                                            :class="{
-                                                'snr-excellent': mux.snr_live >= 20,
-                                                'snr-good': mux.snr_live >= 10 && mux.snr_live < 20,
-                                                'snr-medium': mux.snr_live >= 6 && mux.snr_live < 10,
-                                                'snr-bad': mux.snr_live < 6
-                                            }"
-                                            x-text="mux.snr_live?.toFixed(0)"
-                                        ></span>
-                                        <span
-                                            x-show="mux.snr_live === null || mux.snr_live === undefined"
-                                            class="px-1 py-0.5 rounded text-[10px] font-bold bg-dab-red text-white"
-                                        >0</span>
+                                    <!-- Colonne SNR avec Min/Max/Live empilés -->
+                                    <div class="px-1 py-1">
+                                        <div class="flex flex-col gap-0.5 text-center text-[8px]">
+                                            <!-- Min -->
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span class="text-gray-500 w-6">Min</span>
+                                                <span
+                                                    x-show="mux.snr_min !== null && mux.snr_min !== undefined"
+                                                    class="px-1 rounded font-bold"
+                                                    :class="{
+                                                        'snr-excellent': mux.snr_min >= 20,
+                                                        'snr-good': mux.snr_min >= 10 && mux.snr_min < 20,
+                                                        'snr-medium': mux.snr_min >= 6 && mux.snr_min < 10,
+                                                        'snr-bad': mux.snr_min < 6
+                                                    }"
+                                                    x-text="mux.snr_min?.toFixed(0)"
+                                                ></span>
+                                            </div>
+                                            <!-- Max -->
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span class="text-gray-500 w-6">Max</span>
+                                                <span
+                                                    x-show="mux.snr_max !== null && mux.snr_max !== undefined"
+                                                    class="px-1 rounded font-bold"
+                                                    :class="{
+                                                        'snr-excellent': mux.snr_max >= 20,
+                                                        'snr-good': mux.snr_max >= 10 && mux.snr_max < 20,
+                                                        'snr-medium': mux.snr_max >= 6 && mux.snr_max < 10,
+                                                        'snr-bad': mux.snr_max < 6
+                                                    }"
+                                                    x-text="mux.snr_max?.toFixed(0)"
+                                                ></span>
+                                            </div>
+                                            <!-- Live -->
+                                            <div class="flex items-center justify-center gap-1">
+                                                <span class="text-gray-500 w-6">Live</span>
+                                                <span
+                                                    x-show="mux.snr_live !== null && mux.snr_live !== undefined"
+                                                    class="px-1 rounded font-bold"
+                                                    :class="{
+                                                        'snr-excellent': mux.snr_live >= 20,
+                                                        'snr-good': mux.snr_live >= 10 && mux.snr_live < 20,
+                                                        'snr-medium': mux.snr_live >= 6 && mux.snr_live < 10,
+                                                        'snr-bad': mux.snr_live < 6
+                                                    }"
+                                                    x-text="mux.snr_live?.toFixed(0)"
+                                                ></span>
+                                                <span
+                                                    x-show="mux.snr_live === null || mux.snr_live === undefined"
+                                                    class="px-1 rounded font-bold bg-dab-red text-white"
+                                                >0</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div class="py-2 text-center">
+                                    <div class="px-1 py-2 text-center">
                                         <span class="text-dab-purple font-semibold text-[10px]" x-text="mux.tx_site_count"></span>
                                     </div>
                                     <div class="px-1 py-2 text-right flex items-center justify-end gap-0.5">
@@ -428,7 +632,7 @@
                                     <div class="hidden md:block px-2 py-2">
                                         <div class="grid gap-1">
                                             <template x-for="tii in mux.tii_list" :key="tii.tii_code">
-                                                <div class="grid grid-cols-[60px_70px_1fr_60px_70px_70px_70px_80px_110px] items-center py-2 bg-dab-card/80 rounded-lg border border-dab-border hover:border-dab-blue/30 transition-colors">
+                                                <div class="grid grid-cols-[60px_70px_1fr_80px_70px_70px_70px_80px_110px] items-center py-2 bg-dab-card/80 rounded-lg border border-dab-border hover:border-dab-blue/30 transition-colors">
                                                     <div class="px-3 flex items-center gap-2">
                                                         <span class="text-dab-blue text-xs">📍</span>
                                                         <span class="font-mono font-bold text-dab-blue text-sm" x-text="tii.tii_code"></span>
@@ -502,15 +706,14 @@
                                                     </div>
                                                     <div class="flex items-center gap-2 text-[9px]">
                                                         <span
-                                                            x-show="tii.snr_max"
-                                                            class="px-1 py-0.5 rounded font-bold"
+                                                            x-show="tii.level_db !== null && tii.level_db !== undefined"
+                                                            class="px-1 py-0.5 font-bold font-mono"
                                                             :class="{
-                                                                'snr-excellent': tii.snr_max >= 20,
-                                                                'snr-good': tii.snr_max >= 10 && tii.snr_max < 20,
-                                                                'snr-medium': tii.snr_max >= 6 && tii.snr_max < 10,
-                                                                'snr-bad': tii.snr_max < 6
+                                                                'text-green-400': tii.level_db >= -5,
+                                                                'text-yellow-400': tii.level_db >= -15 && tii.level_db < -5,
+                                                                'text-orange-400': tii.level_db < -15
                                                             }"
-                                                            x-text="'SNR ' + tii.snr_max?.toFixed(0)"
+                                                            x-text="tii.level_db?.toFixed(1) + ' dB'"
                                                         ></span>
                                                         <span
                                                             class="font-bold text-white"
@@ -524,13 +727,16 @@
                                                         ></span>
                                                         <span class="text-gray-500 font-mono" x-text="tii.azimuth_deg ? tii.azimuth_deg.toFixed(0) + '°' : ''"></span>
                                                     </div>
+                                                    <div x-show="tii.last_rx_time" class="text-[8px] text-gray-500 font-mono mt-1">
+                                                        <span x-text="tii.last_rx_time ? new Date(tii.last_rx_time).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'}) : ''"></span>
+                                                    </div>
                                                 </div>
                                             </template>
                                         </div>
                                     </div>
 
                                     <div x-show="mux.tii_list.length === 0" class="text-gray-500 text-sm text-center py-4">
-                                        Aucun TII disponible (base TX non configurée)
+                                        Aucun TII détecté pour cet ensemble
                                     </div>
                                 </div>
                             </div>
@@ -562,22 +768,55 @@
         <!-- MAP TAB -->
         <div x-show="activeTab === 'map'" x-cloak>
             <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
-                <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-between">
-                    <h2 class="font-semibold text-white flex items-center gap-2">
-                        <span>🗺️</span> Carte des réceptions
-                    </h2>
-                    <div class="flex items-center gap-6 text-sm">
+                <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-center gap-6">
+                    <div class="flex items-center gap-4 md:gap-6 text-xs md:text-sm flex-wrap justify-center">
                         <span class="flex items-center gap-2">
-                            <span class="w-4 h-4 bg-dab-blue rounded-full"></span>
-                            <span class="text-gray-400">Récepteur (RX)</span>
+                            <span class="w-6 h-6 bg-dab-blue rounded-full border-2 border-white flex items-center justify-center text-sm">🏠</span>
+                            <span class="text-gray-400">Récepteur</span>
                         </span>
-                        <span class="flex items-center gap-2">
-                            <span class="w-4 h-4 bg-dab-red rounded-full"></span>
-                            <span class="text-gray-400">Émetteurs (TX)</span>
-                        </span>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="showRecentTX" @change="updateMapMarkersFromData()" class="w-4 h-4 rounded border-gray-600 bg-dab-darker text-green-500 focus:ring-green-500 focus:ring-offset-dab-darker">
+                            <span class="w-4 h-4 bg-green-500 rounded-full border border-gray-700"></span>
+                            <span class="text-gray-400">TX Récent</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" x-model="showOldTX" @change="updateMapMarkersFromData()" class="w-4 h-4 rounded border-gray-600 bg-dab-darker text-red-500 focus:ring-red-500 focus:ring-offset-dab-darker">
+                            <span class="w-4 h-4 bg-dab-red rounded-full border border-gray-700"></span>
+                            <span class="text-gray-400">TX Ancien</span>
+                        </label>
                     </div>
                 </div>
-                <div id="map"></div>
+                <div id="map" class="relative">
+                    <!-- Loader / Message d'erreur -->
+                    <div
+                        x-show="!mapInitialized || mapLoadError"
+                        class="absolute inset-0 flex items-center justify-center bg-dab-dark/90 z-[1000]"
+                        style="backdrop-filter: blur(2px);"
+                    >
+                        <div class="text-center p-4">
+                            <!-- Spinner de chargement -->
+                            <div x-show="!mapInitialized && !mapLoadError">
+                                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-dab-blue mb-3"></div>
+                                <div class="text-gray-400 text-sm">Chargement de la carte...</div>
+                            </div>
+
+                            <!-- Message d'erreur -->
+                            <div x-show="mapLoadError" class="max-w-md">
+                                <div class="text-dab-red text-4xl mb-3">⚠️</div>
+                                <div class="text-white font-semibold text-lg mb-2">Erreur de chargement</div>
+                                <div class="text-gray-400 text-sm mb-4">
+                                    La carte n'a pas pu se charger. Vérifiez votre connexion internet ou consultez la console (F12).
+                                </div>
+                                <button
+                                    @click="mapInitialized = false; mapLoadError = false; map = null; initMap();"
+                                    class="px-4 py-2 bg-dab-blue hover:bg-dab-blue/80 text-white rounded-lg text-sm font-medium transition-colors"
+                                >
+                                    🔄 Réessayer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -598,17 +837,21 @@
                             <input type="text" x-model="configForm.rx.name"
                                    class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 focus:border-dab-blue focus:outline-none">
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">Latitude</label>
-                                <input type="number" step="0.0001" x-model="configForm.rx.lat"
-                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">Longitude</label>
-                                <input type="number" step="0.0001" x-model="configForm.rx.lon"
-                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
-                            </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">GPS coordinates</label>
+                            <input type="text"
+                                   x-model="gpsCoordinates"
+                                   placeholder="49.785837, 4.70956"
+                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
+                            <p class="text-xs text-gray-500 mt-1">Enter coordinates in "latitude, longitude" format, for example: 1.234,-5.678</p>
+                        </div>
+
+                        <!-- Google Maps Tip -->
+                        <div class="p-3 bg-dab-dark/50 border border-dab-border/50 rounded-lg">
+                            <p class="text-xs text-gray-400 leading-relaxed">
+                                <span class="font-semibold text-gray-300">Tip:</span> Go to
+                                <a href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" class="text-dab-blue hover:underline">Google maps</a>, right click on your location, click on coordinates in popup menu to copy them and then insert the values here as they are.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -828,6 +1071,6 @@
         <span x-text="toast.message"></span>
     </div>
 
-    <script src="/static/js/app.js?v=6"></script>
+    <script src="/static/js/app.js?v=35"></script>
 </body>
 </html>

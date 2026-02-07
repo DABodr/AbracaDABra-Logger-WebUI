@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -15,20 +16,30 @@ class RXMarker(BaseModel):
     marker_type: str = "rx"
 
 
+class TXEnsemble(BaseModel):
+    """Single ensemble received from a TX site."""
+    bloc: str
+    ensemble: str
+    eid: str
+    tii_code: str
+    main: int
+    sub: int
+    snr_min: Optional[float] = None
+    snr_max: Optional[float] = None
+    level_db: Optional[float] = None
+    is_live: bool = False
+    last_rx_time: Optional[datetime] = None
+
+
 class TXMarker(BaseModel):
     """Transmitter marker on map."""
-    tii_code: str
     location: str
     lat: float
     lon: float
     distance_km: float
     azimuth_deg: Optional[float] = None
-    bloc: str
-    ensemble: str
-    eid: str
-    snr_min: Optional[float] = None
-    snr_max: Optional[float] = None
     erp_kw: Optional[float] = None
+    ensembles: list[TXEnsemble] = Field(default_factory=list)
     marker_type: str = "tx"
 
 

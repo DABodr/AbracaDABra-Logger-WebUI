@@ -181,6 +181,11 @@ def _create_mux_group_with_tx(
         else:
             tii_time = None
 
+        # Determine if this TII is live (in latest scan)
+        is_live = False
+        if pd.notna(tii_time) and pd.notna(last_time):
+            is_live = (tii_time == last_time)
+
         tii_detail = TIIDetail(
             tii_code=tii_code,
             main=main,
@@ -195,6 +200,7 @@ def _create_mux_group_with_tx(
             snr_min=float(snr_min) if snr_min is not None else None,
             snr_max=float(snr_max) if snr_max is not None else None,
             last_rx_time=tii_time if pd.notna(tii_time) else None,
+            is_live=is_live,
         )
         tii_list.append(tii_detail)
 
@@ -268,14 +274,99 @@ def _create_mux_group_without_tx(
     # Get latest SNR (from most recent scan)
     snr_live = _get_latest_snr(raw_df, bloc, ensemble, time_col)
 
+    # Extract TII information from raw_df even without TX match
+    tii_list: list[TIIDetail] = []
+    if not ensemble_raw.empty:
+        # Check if Main/Sub columns exist
+        has_main = "Main" in ensemble_raw.columns
+        has_sub = "Sub" in ensemble_raw.columns
+
+        if has_main and has_sub:
+            # Extract unique TII codes (Main, Sub combinations)
+            seen_tii = set()
+
+            for _, row in ensemble_raw.iterrows():
+                main_val = row.get("Main")
+                sub_val = row.get("Sub")
+
+                # Skip if Main or Sub is missing/invalid
+                if pd.isna(main_val) or pd.isna(sub_val):
+                    continue
+
+                try:
+                    main = int(main_val)
+                    sub = int(sub_val)
+                except (ValueError, TypeError):
+                    continue
+
+                tii_key = (main, sub)
+                if tii_key in seen_tii:
+                    continue
+                seen_tii.add(tii_key)
+
+                # Create TII code
+                tii_code = format_tii_code(main, sub)
+
+                # Get SNR stats for this specific TII
+                tii_mask = (ensemble_raw["Main"] == main) & (ensemble_raw["Sub"] == sub)
+                tii_rows = ensemble_raw[tii_mask]
+
+                if not tii_rows.empty and "SNR [dB]" in tii_rows.columns:
+                    tii_snr_vals = pd.to_numeric(tii_rows["SNR [dB]"], errors="coerce").dropna()
+                    tii_snr_min = tii_snr_vals.min() if not tii_snr_vals.empty else None
+                    tii_snr_max = tii_snr_vals.max() if not tii_snr_vals.empty else None
+                else:
+                    tii_snr_min = tii_snr_max = None
+
+                # Get level (relative power)
+                level_col = "Level [dB]"
+                if level_col in tii_rows.columns:
+                    level_vals = pd.to_numeric(tii_rows[level_col], errors="coerce").dropna()
+                    level_db = level_vals.mean() if not level_vals.empty else None
+                else:
+                    level_db = None
+
+                # Get last time for this TII
+                if time_col and time_col in tii_rows.columns:
+                    tii_time = pd.to_datetime(tii_rows[time_col], errors="coerce").max()
+                else:
+                    tii_time = None
+
+                # Determine if this TII is live (in latest scan)
+                is_live = False
+                if pd.notna(tii_time) and pd.notna(last_time):
+                    is_live = (tii_time == last_time)
+
+                # Create TII detail with "unknown" location
+                tii_detail = TIIDetail(
+                    tii_code=tii_code,
+                    main=main,
+                    sub=sub,
+                    location=f"TII {tii_code} - Non disponible dans la base de données",
+                    lat=0.0,
+                    lon=0.0,
+                    distance_km=0.0,
+                    azimuth_deg=None,
+                    erp_kw=None,
+                    level_db=float(level_db) if level_db is not None else None,
+                    snr_min=float(tii_snr_min) if tii_snr_min is not None else None,
+                    snr_max=float(tii_snr_max) if tii_snr_max is not None else None,
+                    last_rx_time=tii_time if pd.notna(tii_time) else None,
+                    is_live=is_live,
+                )
+                tii_list.append(tii_detail)
+
+            # Sort TII by level (if available), then by TII code
+            tii_list.sort(key=lambda t: (t.level_db is None, -(t.level_db if t.level_db is not None else -999)))
+
     return MuxGroup(
         bloc=str(bloc),
         ensemble=str(ensemble),
         eid=eid,
         frequency_mhz=freq_mhz,
-        tx_site_count=0,
+        tx_site_count=len(tii_list),
         station_count=station_count,
-        tii_list=[],  # No TX details
+        tii_list=tii_list,
         snr_min=float(snr_min) if pd.notna(snr_min) else None,
         snr_max=float(snr_max) if pd.notna(snr_max) else None,
         snr_live=snr_live,
@@ -505,45 +596,76 @@ def build_map_markers(
     rx_lon: float
 ) -> MapMarkersResponse:
     """Build map markers from MuxGroups."""
+    from app.api.models.map import TXEnsemble
+
     rx_marker = RXMarker(name=rx_name, lat=rx_lat, lon=rx_lon)
 
-    tx_markers: list[TXMarker] = []
-    lines: list[ConnectionLine] = []
-    seen_locations = set()
+    # Group all ensembles by location (lat, lon)
+    sites_dict: dict[tuple[float, float], dict] = {}
 
     for mux in mux_groups:
         for tii in mux.tii_list:
-            # Avoid duplicate markers at same location
-            loc_key = (tii.lat, tii.lon)
-            if loc_key in seen_locations:
+            # Skip TII without valid location (not in database)
+            if tii.lat == 0.0 and tii.lon == 0.0:
                 continue
-            seen_locations.add(loc_key)
 
-            tx_marker = TXMarker(
-                tii_code=tii.tii_code,
-                location=tii.location,
-                lat=tii.lat,
-                lon=tii.lon,
-                distance_km=tii.distance_km,
-                azimuth_deg=tii.azimuth_deg,
+            loc_key = (tii.lat, tii.lon)
+
+            # Initialize site if not seen before
+            if loc_key not in sites_dict:
+                sites_dict[loc_key] = {
+                    'location': tii.location,
+                    'lat': tii.lat,
+                    'lon': tii.lon,
+                    'distance_km': tii.distance_km,
+                    'azimuth_deg': tii.azimuth_deg,
+                    'erp_kw': tii.erp_kw,
+                    'ensembles': []
+                }
+
+            # Add ensemble to this site
+            ensemble = TXEnsemble(
                 bloc=mux.bloc,
                 ensemble=mux.ensemble,
                 eid=mux.eid,
+                tii_code=tii.tii_code,
+                main=tii.main,
+                sub=tii.sub,
                 snr_min=tii.snr_min,
                 snr_max=tii.snr_max,
-                erp_kw=tii.erp_kw,
+                level_db=tii.level_db,
+                is_live=tii.is_live,
+                last_rx_time=tii.last_rx_time,
             )
-            tx_markers.append(tx_marker)
+            sites_dict[loc_key]['ensembles'].append(ensemble)
 
-            line = ConnectionLine(
-                from_lat=rx_lat,
-                from_lon=rx_lon,
-                to_lat=tii.lat,
-                to_lon=tii.lon,
-                tii_code=tii.tii_code,
-                distance_km=tii.distance_km,
-            )
-            lines.append(line)
+    # Create TX markers and lines
+    tx_markers: list[TXMarker] = []
+    lines: list[ConnectionLine] = []
+
+    for loc_key, site_data in sites_dict.items():
+        tx_marker = TXMarker(
+            location=site_data['location'],
+            lat=site_data['lat'],
+            lon=site_data['lon'],
+            distance_km=site_data['distance_km'],
+            azimuth_deg=site_data['azimuth_deg'],
+            erp_kw=site_data['erp_kw'],
+            ensembles=site_data['ensembles'],
+        )
+        tx_markers.append(tx_marker)
+
+        # Use the first ensemble's TII code for the line
+        first_tii_code = site_data['ensembles'][0].tii_code if site_data['ensembles'] else "?"
+        line = ConnectionLine(
+            from_lat=rx_lat,
+            from_lon=rx_lon,
+            to_lat=site_data['lat'],
+            to_lon=site_data['lon'],
+            tii_code=first_tii_code,
+            distance_km=site_data['distance_km'],
+        )
+        lines.append(line)
 
     # Sort TX markers by distance
     tx_markers.sort(key=lambda m: m.distance_km)

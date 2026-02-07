@@ -23,6 +23,7 @@ class TIIDetail(BaseModel):
     snr_min: Optional[float] = Field(None, description="Minimum SNR recorded")
     snr_max: Optional[float] = Field(None, description="Maximum SNR recorded")
     last_rx_time: Optional[datetime] = Field(None, description="Last reception time")
+    is_live: bool = Field(False, description="True if present in latest scan")
 
 
 class MuxGroup(BaseModel):
