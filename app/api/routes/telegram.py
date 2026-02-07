@@ -5,12 +5,20 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from ...config import get_config
+from pydantic import BaseModel
+
 from ...core.telegram_bot import (
     start_telegram_bot,
     stop_telegram_bot,
     is_bot_running,
     get_bot_stats,
+    send_test_message,
 )
+
+
+class TelegramTestRequest(BaseModel):
+    token: str
+    chat_id: str
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 
@@ -83,3 +91,28 @@ async def restart_bot():
         return {"success": True, "message": "Bot restarted"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/test")
+async def test_bot(req: TelegramTestRequest):
+    """Send a test message via Telegram bot."""
+    # Use real token from config if submitted value is masked
+    token = req.token
+    if not token or token.endswith("..."):
+        config = get_config()
+        token = config.telegram.token
+
+    if not token:
+        return {"success": False, "message": "Token non configuré"}
+
+    if not req.chat_id:
+        return {"success": False, "message": "Chat ID non renseigné"}
+
+    try:
+        result = send_test_message(token, req.chat_id)
+        if result:
+            return {"success": True, "message": "Message de test envoyé"}
+        else:
+            return {"success": False, "message": "Échec de l'envoi. Vérifiez le token et le chat ID."}
+    except Exception as e:
+        return {"success": False, "message": str(e)}

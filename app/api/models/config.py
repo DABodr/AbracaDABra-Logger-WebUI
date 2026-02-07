@@ -13,16 +13,6 @@ class TelegramConfigRequest(BaseModel):
     enabled: bool = False
 
 
-class FTPConfigRequest(BaseModel):
-    """FTP configuration update request."""
-    server: str = ""
-    username: str = ""
-    password: str = ""
-    remote_dir: str = "/"
-    remote_filename: str = "abracadabra_dx.html"
-    enabled: bool = False
-
-
 class PathsConfigRequest(BaseModel):
     """Paths configuration update request."""
     csv_dir: str
@@ -40,17 +30,10 @@ class RXConfigRequest(BaseModel):
 class AppConfigRequest(BaseModel):
     """Full application configuration update request."""
     telegram: TelegramConfigRequest | None = None
-    ftp: FTPConfigRequest | None = None
     paths: PathsConfigRequest | None = None
     rx: RXConfigRequest | None = None
     refresh_interval_sec: int | None = Field(None, ge=15, le=3600)
     auto_refresh_enabled: bool | None = None
-
-
-class FTPTestResponse(BaseModel):
-    """FTP connection test response."""
-    success: bool
-    message: str
 
 
 class StatusResponse(BaseModel):

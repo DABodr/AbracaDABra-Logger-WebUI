@@ -43,7 +43,6 @@ ENV/
 data/config.json
 logs/
 *.log
-photos/
 
 # OS
 .DS_Store

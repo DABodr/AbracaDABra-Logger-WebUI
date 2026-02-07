@@ -31,16 +31,6 @@ class TelegramConfig(BaseModel):
     enabled: bool = Field(default=False)
 
 
-class FTPConfig(BaseModel):
-    """FTP upload configuration."""
-    server: str = Field(default="")
-    username: str = Field(default="")
-    password: str = Field(default="")
-    remote_dir: str = Field(default="/")
-    remote_filename: str = Field(default="abracadabra_dx.html")
-    enabled: bool = Field(default=False)
-
-
 class PathsConfig(BaseModel):
     """File paths configuration."""
     csv_dir: str = Field(
@@ -67,11 +57,11 @@ class RXConfig(BaseModel):
 class AppConfig(BaseModel):
     """Main application configuration."""
     telegram: TelegramConfig = Field(default_factory=TelegramConfig)
-    ftp: FTPConfig = Field(default_factory=FTPConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)
     rx: RXConfig = Field(default_factory=RXConfig)
     refresh_interval_sec: int = Field(default=120, ge=15, le=3600)
     auto_refresh_enabled: bool = Field(default=True)
+    config_password_hash: str = Field(default="", description="SHA-256 hash of config access password")
 
 
 def load_config() -> AppConfig:
@@ -91,13 +81,6 @@ def load_config() -> AppConfig:
         config.telegram.allowed_chats = os.getenv("ABRACA_TG_ALLOWED", "")
         config.telegram.poll_interval_sec = int(os.getenv("ABRACA_TG_POLL_SEC", "20"))
         config.telegram.enabled = bool(config.telegram.token)
-
-    if os.getenv("ABRACA_FTP_SERVER"):
-        config.ftp.server = os.getenv("ABRACA_FTP_SERVER", "")
-        config.ftp.username = os.getenv("ABRACA_FTP_USER", "")
-        config.ftp.password = os.getenv("ABRACA_FTP_PASS", "")
-        config.ftp.remote_dir = os.getenv("ABRACA_FTP_DIR", "/")
-        config.ftp.enabled = bool(config.ftp.server and config.ftp.username)
 
     if os.getenv("ABRACA_CSV_DIR"):
         config.paths.csv_dir = os.getenv("ABRACA_CSV_DIR", config.paths.csv_dir)

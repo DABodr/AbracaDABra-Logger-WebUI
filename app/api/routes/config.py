@@ -2,32 +2,78 @@
 
 from __future__ import annotations
 
-import ftplib
+import hashlib
 import os
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from ...config import (
     get_config,
     update_config,
     AppConfig,
     TelegramConfig,
-    FTPConfig,
     PathsConfig,
     RXConfig,
 )
 from ..models.config import (
     AppConfigRequest,
     TelegramConfigRequest,
-    FTPConfigRequest,
     PathsConfigRequest,
     RXConfigRequest,
-    FTPTestResponse,
 )
 
 router = APIRouter(prefix="/api/config", tags=["config"])
+
+
+def _hash_password(password: str) -> str:
+    """Hash a password using SHA-256."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+class PasswordRequest(BaseModel):
+    password: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.get("/password-status")
+async def get_password_status():
+    """Check if a config password is set."""
+    config = get_config()
+    return {"has_password": bool(config.config_password_hash)}
+
+
+@router.post("/verify-password")
+async def verify_password(req: PasswordRequest):
+    """Verify the config access password."""
+    config = get_config()
+    if not config.config_password_hash:
+        return {"success": True}
+    if _hash_password(req.password) == config.config_password_hash:
+        return {"success": True}
+    return {"success": False, "message": "Mot de passe incorrect"}
+
+
+@router.post("/set-password")
+async def set_password(req: PasswordChangeRequest):
+    """Set or change the config password."""
+    config = get_config()
+    # If a password already exists, verify the current one
+    if config.config_password_hash:
+        if _hash_password(req.current_password) != config.config_password_hash:
+            return {"success": False, "message": "Mot de passe actuel incorrect"}
+    if req.new_password:
+        config.config_password_hash = _hash_password(req.new_password)
+    else:
+        config.config_password_hash = ""
+    update_config(config)
+    return {"success": True, "message": "Mot de passe mis à jour"}
 
 
 @router.get("")
@@ -41,14 +87,6 @@ async def get_configuration():
             "allowed_chats": config.telegram.allowed_chats,
             "poll_interval_sec": config.telegram.poll_interval_sec,
             "enabled": config.telegram.enabled,
-        },
-        "ftp": {
-            "server": config.ftp.server,
-            "username": config.ftp.username,
-            "password": "***" if config.ftp.password else "",
-            "remote_dir": config.ftp.remote_dir,
-            "remote_filename": config.ftp.remote_filename,
-            "enabled": config.ftp.enabled,
         },
         "paths": {
             "csv_dir": config.paths.csv_dir,
@@ -71,21 +109,15 @@ async def update_configuration(request: AppConfigRequest):
     config = get_config()
 
     if request.telegram is not None:
+        # Keep existing token if the submitted value is masked or empty
+        new_token = request.telegram.token
+        if not new_token or new_token.endswith("..."):
+            new_token = config.telegram.token
         config.telegram = TelegramConfig(
-            token=request.telegram.token or config.telegram.token,
+            token=new_token,
             allowed_chats=request.telegram.allowed_chats,
             poll_interval_sec=request.telegram.poll_interval_sec,
             enabled=request.telegram.enabled,
-        )
-
-    if request.ftp is not None:
-        config.ftp = FTPConfig(
-            server=request.ftp.server,
-            username=request.ftp.username,
-            password=request.ftp.password if request.ftp.password else config.ftp.password,
-            remote_dir=request.ftp.remote_dir,
-            remote_filename=request.ftp.remote_filename,
-            enabled=request.ftp.enabled,
         )
 
     if request.paths is not None:
@@ -137,69 +169,6 @@ async def update_telegram_config(request: TelegramConfigRequest):
     )
     update_config(config)
     return {"success": True}
-
-
-@router.get("/ftp")
-async def get_ftp_config():
-    """Get FTP configuration."""
-    config = get_config()
-    return {
-        "server": config.ftp.server,
-        "username": config.ftp.username,
-        "password": "***" if config.ftp.password else "",
-        "remote_dir": config.ftp.remote_dir,
-        "remote_filename": config.ftp.remote_filename,
-        "enabled": config.ftp.enabled,
-    }
-
-
-@router.put("/ftp")
-async def update_ftp_config(request: FTPConfigRequest):
-    """Update FTP configuration."""
-    config = get_config()
-    config.ftp = FTPConfig(
-        server=request.server,
-        username=request.username,
-        password=request.password if request.password and request.password != "***" else config.ftp.password,
-        remote_dir=request.remote_dir,
-        remote_filename=request.remote_filename,
-        enabled=request.enabled,
-    )
-    update_config(config)
-    return {"success": True}
-
-
-@router.post("/test-ftp", response_model=FTPTestResponse)
-async def test_ftp_connection(request: FTPConfigRequest) -> FTPTestResponse:
-    """Test FTP connection."""
-    if not request.server or not request.username:
-        return FTPTestResponse(success=False, message="Server and username required")
-
-    # Get password from config if not provided
-    password = request.password
-    if not password or password == "***":
-        config = get_config()
-        password = config.ftp.password
-
-    if not password:
-        return FTPTestResponse(success=False, message="Password required")
-
-    try:
-        ftp = ftplib.FTP(request.server, timeout=10)
-        ftp.login(request.username, password)
-
-        if request.remote_dir and request.remote_dir != "/":
-            ftp.cwd(request.remote_dir)
-
-        ftp.quit()
-        return FTPTestResponse(success=True, message="Connection successful")
-
-    except ftplib.error_perm as e:
-        return FTPTestResponse(success=False, message=f"Permission error: {e}")
-    except ftplib.error_temp as e:
-        return FTPTestResponse(success=False, message=f"Temporary error: {e}")
-    except Exception as e:
-        return FTPTestResponse(success=False, message=f"Connection failed: {e}")
 
 
 @router.get("/paths")

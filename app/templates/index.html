@@ -359,7 +359,7 @@
                     <span>🗺️</span> Carte
                 </button>
                 <button
-                    @click="activeTab = 'config'"
+                    @click="openConfigTab()"
                     :class="{ 'active': activeTab === 'config' }"
                     class="tab-btn px-2 md:px-4 py-1.5 md:py-2 rounded-md md:rounded-lg text-xs md:text-sm font-medium border border-transparent flex items-center gap-1 md:gap-2"
                 >
@@ -766,7 +766,7 @@
         </div>
 
         <!-- MAP TAB -->
-        <div x-show="activeTab === 'map'" x-cloak>
+        <div x-show="activeTab === 'map'" x-cloak style="position: relative; z-index: 1;">
             <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden card-glow">
                 <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-center gap-6">
                     <div class="flex items-center gap-4 md:gap-6 text-xs md:text-sm flex-wrap justify-center">
@@ -821,7 +821,7 @@
         </div>
 
         <!-- CONFIG TAB -->
-        <div x-show="activeTab === 'config'" x-cloak>
+        <div x-show="activeTab === 'config' && (!configHasPassword || configAuthenticated)" x-cloak style="position: relative; z-index: 2;">
             <div class="grid lg:grid-cols-2 gap-6">
 
                 <!-- RX Position -->
@@ -843,14 +843,14 @@
                                    x-model="gpsCoordinates"
                                    placeholder="49.785837, 4.70956"
                                    class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono focus:border-dab-blue focus:outline-none">
-                            <p class="text-xs text-gray-500 mt-1">Enter coordinates in "latitude, longitude" format, for example: 1.234,-5.678</p>
+                            <p class="text-xs text-gray-500 mt-1">Saisissez les coordonnées au format « latitude, longitude », par exemple : 1,234, -5,678</p>
                         </div>
 
                         <!-- Google Maps Tip -->
                         <div class="p-3 bg-dab-dark/50 border border-dab-border/50 rounded-lg">
                             <p class="text-xs text-gray-400 leading-relaxed">
-                                <span class="font-semibold text-gray-300">Tip:</span> Go to
-                                <a href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" class="text-dab-blue hover:underline">Google maps</a>, right click on your location, click on coordinates in popup menu to copy them and then insert the values here as they are.
+                                <span class="font-semibold text-gray-300">Conseil :</span> Allez sur
+                                <a href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer" class="text-dab-blue hover:underline">Google Maps</a>, faites un clic droit sur votre emplacement, cliquez sur « Coordonnées » dans le menu contextuel pour les copier, puis insérez les valeurs ici telles quelles.
                             </p>
                         </div>
                     </div>
@@ -891,6 +891,11 @@
                                     📂
                                 </button>
                             </div>
+                            <div class="mt-2 p-2 bg-dab-dark/50 border border-dab-border/50 rounded-lg text-xs text-gray-500 space-y-1">
+                                <p class="font-semibold text-gray-400">Chemin par défaut du fichier :</p>
+                                <p><span class="text-gray-400">Windows :</span> <code class="text-dab-blue/70 font-mono">C:\Users\&lt;user&gt;\AppData\Local\AbracaDABra\cache\TII\dab-tx-list.csv</code></p>
+                                <p><span class="text-gray-400">Linux :</span> <code class="text-dab-blue/70 font-mono">/home/&lt;user&gt;/.cache/AbracaDABra/TII/dab-tx-list.csv</code></p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -923,53 +928,76 @@
                             <input type="text" x-model="configForm.telegram.allowed_chats" placeholder="123456,789012"
                                    class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 font-mono text-sm focus:border-dab-blue focus:outline-none">
                         </div>
+                        <button
+                            @click="testTelegram()"
+                            class="w-full px-4 py-2 bg-dab-blue/20 hover:bg-dab-blue/30 border border-dab-blue/50 rounded-lg text-sm text-dab-blue transition-colors"
+                        >
+                            Tester la connexion Telegram
+                        </button>
                     </div>
                 </div>
 
-                <!-- FTP -->
+            </div>
+
+                <!-- Password / Security -->
                 <div class="bg-dab-card border border-dab-border rounded-lg overflow-hidden">
-                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border flex items-center justify-between">
+                    <div class="px-4 py-3 bg-dab-darker border-b border-dab-border">
                         <h2 class="font-semibold text-white flex items-center gap-2">
-                            <span>📤</span> Upload FTP
+                            <span>🔒</span> Mot de passe Configuration
                         </h2>
-                        <button
-                            @click="configForm.ftp.enabled = !configForm.ftp.enabled"
-                            class="relative w-12 h-6 rounded-full transition-colors"
-                            :class="configForm.ftp.enabled ? 'bg-dab-green' : 'bg-dab-border'"
-                        >
-                            <span
-                                :class="configForm.ftp.enabled ? 'translate-x-6' : 'translate-x-1'"
-                                class="absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform"
-                            ></span>
-                        </button>
                     </div>
                     <div class="p-4 space-y-4">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">Serveur</label>
-                                <input type="text" x-model="configForm.ftp.server"
-                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                        <template x-if="configHasPassword">
+                            <div class="space-y-4">
+                                <p class="text-sm text-gray-400">Un mot de passe est actuellement configuré.</p>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-1">Mot de passe actuel</label>
+                                    <input type="password" x-model="currentPassword"
+                                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-1">Nouveau mot de passe <span class="text-gray-600">(vide = supprimer)</span></label>
+                                    <input type="password" x-model="newPassword"
+                                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none"
+                                           placeholder="Laisser vide pour supprimer le mot de passe">
+                                </div>
+                                <div x-show="newPassword">
+                                    <label class="block text-sm text-gray-400 mb-1">Confirmer le nouveau mot de passe</label>
+                                    <input type="password" x-model="confirmPassword"
+                                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none"
+                                           placeholder="Retapez le nouveau mot de passe">
+                                    <p x-show="confirmPassword && newPassword !== confirmPassword" class="text-xs text-dab-red mt-1">Les mots de passe ne correspondent pas</p>
+                                </div>
+                                <button @click="changePassword()"
+                                        class="w-full px-4 py-2 bg-dab-blue/20 hover:bg-dab-blue/30 border border-dab-blue/50 rounded-lg text-sm text-dab-blue transition-colors">
+                                    Modifier le mot de passe
+                                </button>
                             </div>
-                            <div>
-                                <label class="block text-sm text-gray-400 mb-1">Utilisateur</label>
-                                <input type="text" x-model="configForm.ftp.username"
-                                       class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
+                        </template>
+                        <template x-if="!configHasPassword">
+                            <div class="space-y-4">
+                                <p class="text-sm text-gray-400">Aucun mot de passe configuré. Définissez-en un pour protéger l'accès à la configuration.</p>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-1">Nouveau mot de passe</label>
+                                    <input type="password" x-model="newPassword"
+                                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none"
+                                           placeholder="Définir un mot de passe">
+                                </div>
+                                <div x-show="newPassword">
+                                    <label class="block text-sm text-gray-400 mb-1">Confirmer le mot de passe</label>
+                                    <input type="password" x-model="confirmPassword"
+                                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none"
+                                           placeholder="Retapez le mot de passe">
+                                    <p x-show="confirmPassword && newPassword !== confirmPassword" class="text-xs text-dab-red mt-1">Les mots de passe ne correspondent pas</p>
+                                </div>
+                                <button @click="changePassword()"
+                                        class="w-full px-4 py-2 bg-dab-blue/20 hover:bg-dab-blue/30 border border-dab-blue/50 rounded-lg text-sm text-dab-blue transition-colors">
+                                    Définir le mot de passe
+                                </button>
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm text-gray-400 mb-1">Mot de passe</label>
-                            <input type="password" x-model="configForm.ftp.password"
-                                   class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 text-sm focus:border-dab-blue focus:outline-none">
-                        </div>
-                        <button
-                            @click="testFtp()"
-                            class="px-4 py-2 bg-dab-dark hover:bg-dab-border border border-dab-border rounded-lg text-sm transition-colors"
-                        >
-                            🔌 Tester la connexion
-                        </button>
+                        </template>
                     </div>
                 </div>
-            </div>
 
             <!-- Save Button -->
             <div class="mt-6 flex justify-end">
@@ -1052,6 +1080,48 @@
         </div>
     </div>
 
+    <!-- Password Modal -->
+    <div
+        x-show="showPasswordModal"
+        x-transition:enter="transition ease-out duration-200"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-150"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+        @keydown.escape.window="showPasswordModal = false"
+    >
+        <div class="bg-dab-card border border-dab-border rounded-xl shadow-2xl p-6 w-full max-w-sm mx-4" @click.stop>
+            <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <span>🔒</span> Accès Configuration
+            </h3>
+            <form @submit.prevent="verifyPassword()">
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-400 mb-1">Mot de passe</label>
+                    <input type="password"
+                           x-model="passwordInput"
+                           x-ref="passwordField"
+                           class="w-full bg-dab-dark border border-dab-border rounded-lg px-3 py-2 focus:border-dab-blue focus:outline-none"
+                           placeholder="Saisissez le mot de passe"
+                           autofocus>
+                    <p x-show="passwordError" x-text="passwordError" class="text-sm text-dab-red mt-1"></p>
+                </div>
+                <div class="flex gap-3">
+                    <button type="button"
+                            @click="showPasswordModal = false; passwordInput = ''; passwordError = ''"
+                            class="flex-1 px-4 py-2 bg-dab-dark hover:bg-dab-border border border-dab-border rounded-lg text-sm transition-colors">
+                        Annuler
+                    </button>
+                    <button type="submit"
+                            class="flex-1 px-4 py-2 bg-dab-blue/20 hover:bg-dab-blue/30 border border-dab-blue/50 rounded-lg text-sm text-dab-blue transition-colors">
+                        Valider
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div
         x-show="toast.show"
@@ -1071,6 +1141,6 @@
         <span x-text="toast.message"></span>
     </div>
 
-    <script src="/static/js/app.js?v=35"></script>
+    <script src="/static/js/app.js?v=36"></script>
 </body>
 </html>

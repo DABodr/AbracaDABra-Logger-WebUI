@@ -44,9 +44,18 @@ function appData() {
             rx: { name: '', lat: 0, lon: 0 },
             paths: { csv_dir: '', tx_db_path: '', out_dir: '' },
             telegram: { token: '', allowed_chats: '', poll_interval_sec: 20, enabled: false },
-            ftp: { server: '', username: '', password: '', remote_dir: '/', remote_filename: '', enabled: false },
         },
         gpsCoordinates: '',
+
+        // Password protection
+        showPasswordModal: false,
+        passwordInput: '',
+        passwordError: '',
+        configAuthenticated: false,
+        configHasPassword: false,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
 
         // Toast
         toast: {
@@ -106,7 +115,7 @@ function appData() {
             }
 
             await this.loadStatus();
-            await this.loadConfig();
+            await this.loadPasswordStatus();
             await this.loadTableData();
             this.startAutoRefresh();
 
@@ -135,18 +144,10 @@ function appData() {
                 this.gpsCoordinates = `${config.rx.lat}, ${config.rx.lon}`;
                 this.configForm.paths = config.paths;
                 this.configForm.telegram = {
-                    token: '',  // Don't show masked token
+                    token: config.telegram.token || '',
                     allowed_chats: config.telegram.allowed_chats,
                     poll_interval_sec: config.telegram.poll_interval_sec,
                     enabled: config.telegram.enabled,
-                };
-                this.configForm.ftp = {
-                    server: config.ftp.server,
-                    username: config.ftp.username,
-                    password: '',  // Don't show masked password
-                    remote_dir: config.ftp.remote_dir,
-                    remote_filename: config.ftp.remote_filename,
-                    enabled: config.ftp.enabled,
                 };
             } catch (error) {
                 console.error('Failed to load config:', error);
@@ -736,7 +737,6 @@ function appData() {
                         rx: this.configForm.rx,
                         paths: this.configForm.paths,
                         telegram: this.configForm.telegram.token ? this.configForm.telegram : null,
-                        ftp: this.configForm.ftp.server ? this.configForm.ftp : null,
                     }),
                 });
 
@@ -753,10 +753,11 @@ function appData() {
                         // Clear map cache to force reload with new RX position
                         localStorage.removeItem('abracadabra_map_data');
 
-                        // Update RX marker position if it exists
+                        // Update RX marker position and name if it exists
                         if (this.rxMarker) {
                             const newLatLng = [this.configForm.rx.lat, this.configForm.rx.lon];
                             this.rxMarker.setLatLng(newLatLng);
+                            this.rxMarker.setPopupContent(`<b>${this.configForm.rx.name}</b><br>Récepteur`);
                             this.map.setView(newLatLng, this.map.getZoom());
                         }
 
@@ -771,22 +772,111 @@ function appData() {
             }
         },
 
-        async testFtp() {
+        async testTelegram() {
             try {
-                const response = await fetch('/api/config/test-ftp', {
+                const token = (this.configForm.telegram.token || '').trim();
+                const allowedChats = (this.configForm.telegram.allowed_chats || '').trim();
+                const chatId = allowedChats ? allowedChats.split(',')[0].trim() : '';
+
+                if (!token) {
+                    this.showToast('Token non configuré', 'error');
+                    return;
+                }
+                if (!chatId) {
+                    this.showToast('Aucun Chat ID renseigné', 'error');
+                    return;
+                }
+
+                const response = await fetch('/api/telegram/test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.configForm.ftp),
+                    body: JSON.stringify({ token: token, chat_id: chatId }),
                 });
 
                 const result = await response.json();
 
                 if (result.success) {
-                    this.showToast('Connexion FTP réussie', 'success');
+                    this.showToast('Message de test envoyé sur Telegram', 'success');
                 } else {
-                    this.showToast('Échec: ' + result.message, 'error');
+                    this.showToast('Échec: ' + (result.message || result.detail || 'Erreur inconnue'), 'error');
                 }
             } catch (error) {
+                this.showToast('Erreur de connexion', 'error');
+            }
+        },
+
+
+        async loadPasswordStatus() {
+            try {
+                const resp = await fetch('/api/config/password-status');
+                const data = await resp.json();
+                this.configHasPassword = data.has_password;
+            } catch (e) {}
+        },
+
+        openConfigTab() {
+            if (this.configHasPassword && !this.configAuthenticated) {
+                this.showPasswordModal = true;
+                this.passwordInput = '';
+                this.passwordError = '';
+                this.$nextTick(() => {
+                    if (this.$refs.passwordField) this.$refs.passwordField.focus();
+                });
+                return;
+            }
+            this.activeTab = 'config';
+            this.loadConfig();
+        },
+
+        async verifyPassword() {
+            try {
+                const resp = await fetch('/api/config/verify-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.passwordInput }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.configAuthenticated = true;
+                    this.showPasswordModal = false;
+                    this.passwordInput = '';
+                    this.passwordError = '';
+                    this.activeTab = 'config';
+                    this.loadConfig();
+                } else {
+                    this.passwordError = data.message || 'Mot de passe incorrect';
+                }
+            } catch (e) {
+                this.passwordError = 'Erreur de connexion';
+            }
+        },
+
+        async changePassword() {
+            // Verify confirmation matches if a new password is set
+            if (this.newPassword && this.newPassword !== this.confirmPassword) {
+                this.showToast('Les mots de passe ne correspondent pas', 'error');
+                return;
+            }
+            try {
+                const resp = await fetch('/api/config/set-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        current_password: this.currentPassword,
+                        new_password: this.newPassword,
+                    }),
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.configHasPassword = !!this.newPassword;
+                    this.currentPassword = '';
+                    this.newPassword = '';
+                    this.confirmPassword = '';
+                    this.showToast(this.configHasPassword ? 'Mot de passe mis à jour' : 'Mot de passe supprimé', 'success');
+                } else {
+                    this.showToast('Erreur: ' + (data.message || 'Échec'), 'error');
+                }
+            } catch (e) {
                 this.showToast('Erreur de connexion', 'error');
             }
         },

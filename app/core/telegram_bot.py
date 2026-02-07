@@ -30,6 +30,24 @@ _stats = {
 }
 
 
+def send_test_message(token: str, chat_id: str) -> bool:
+    """Send a test message to verify bot configuration."""
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        resp = requests.post(
+            url,
+            data={
+                "chat_id": chat_id,
+                "text": "AbracaDABra Logger WebUI - Test OK",
+                "parse_mode": "Markdown",
+            },
+            timeout=10,
+        )
+        return resp.status_code == 200 and resp.json().get("ok", False)
+    except Exception:
+        return False
+
+
 def is_bot_running() -> bool:
     """Check if bot is running."""
     return _bot_running and _bot_thread is not None and _bot_thread.is_alive()
