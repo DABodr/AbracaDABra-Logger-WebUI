@@ -113,6 +113,7 @@ async def update_configuration(request: AppConfigRequest):
         new_token = request.telegram.token
         if not new_token or new_token.endswith("..."):
             new_token = config.telegram.token
+        was_enabled = config.telegram.enabled
         config.telegram = TelegramConfig(
             token=new_token,
             allowed_chats=request.telegram.allowed_chats,
@@ -141,6 +142,14 @@ async def update_configuration(request: AppConfigRequest):
         config.auto_refresh_enabled = request.auto_refresh_enabled
 
     update_config(config)
+
+    # Start/stop Telegram bot if enabled state changed
+    if request.telegram is not None:
+        from ...core.telegram_bot import start_telegram_bot, stop_telegram_bot, is_bot_running
+        if config.telegram.enabled and config.telegram.token and not is_bot_running():
+            start_telegram_bot()
+        elif not config.telegram.enabled and is_bot_running():
+            stop_telegram_bot()
 
     return {"success": True, "message": "Configuration updated"}
 

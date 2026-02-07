@@ -16,7 +16,7 @@ import pandas as pd
 import requests
 
 from ..config import get_config
-from .csv_parser import choose_latest_abraca_csv, parse_csv, is_dab_block, channel_sort_key
+from .csv_parser import choose_latest_abraca_csv, parse_csv, parse_all_abraca_csvs, is_dab_block, channel_sort_key
 
 # Bot state
 _bot_thread: Optional[threading.Thread] = None
@@ -204,21 +204,33 @@ def _handle_message(chat_id: int, text: str) -> None:
         return
 
 
+def _cut(s: str, n: int) -> str:
+    """Truncate string with ellipsis."""
+    s = (s or "").strip()
+    return s if len(s) <= n else s[: n - 1] + "\u2026"
+
+
+def _hhmm(t: str) -> str:
+    """Extract HH:MM from time string."""
+    t = t or ""
+    return t.split("-")[-1].strip() if "-" in t else t[-5:]
+
+
 def _send_help(chat_id: int) -> None:
     """Send help message."""
     msg = (
-        "*AbracaDABra DX Bot*\n\n"
+        "\U0001F916 *AbracaDABra DX Bot*\n\n"
         "Commands:\n"
-        "`DX` - all mux (latest snapshot)\n"
-        "`DX 10` - limit to 10\n"
-        "`DX 9B` - filter by block\n"
-        "`9B` - shortcut for `DX 9B`\n"
-        "`DX >300` - distance filter (>300km)\n"
-        "`>300` / `<50` - shortcuts\n"
-        "`LOCAL` - shortcut for `<50`\n"
-        "`LAST` / `LAST 5` - most recent mux\n"
-        "`STATUS` - script status\n"
-        "`HELP` - this memo\n"
+        "`DX` \u2192 all mux (latest snapshot)\n"
+        "`DX 10` \u2192 limit 10\n"
+        "`DX 9B` \u2192 filter by block\n"
+        "`9B` \u2192 shortcut for `DX 9B`\n"
+        "`DX >300` \u2192 distance filter\n"
+        "`>300` / `<50` \u2192 shortcuts\n"
+        "`LOCAL` \u2192 shortcut for `<50`\n"
+        "`LAST` / `LAST 5` \u2192 most recent mux\n"
+        "`STATUS` \u2192 script status\n"
+        "`HELP` \u2192 this memo\n"
     )
     _tg_send(chat_id, msg)
 
@@ -229,10 +241,10 @@ def _send_status(chat_id: int) -> None:
     csv_dir = Path(config.paths.csv_dir)
 
     csv_file = choose_latest_abraca_csv(csv_dir)
-    csv_name = csv_file.name if csv_file else "—"
+    csv_name = csv_file.name if csv_file else "\u2014"
 
     msg = (
-        "*STATUS*\n"
+        "\U0001F7E2 *STATUS*\n"
         f"CSV Dir: `{csv_dir}`\n"
         f"Latest CSV: `{csv_name}`\n"
         f"RX: `{config.rx.name}`\n"
@@ -242,20 +254,20 @@ def _send_status(chat_id: int) -> None:
 
 
 def _get_dx_snapshot() -> list[dict]:
-    """Get current DX snapshot."""
+    """Get current DX snapshot from all recent CSV files."""
     config = get_config()
     csv_dir = Path(config.paths.csv_dir)
 
-    csv_file = choose_latest_abraca_csv(csv_dir)
-    if not csv_file:
-        return []
-
     try:
-        raw_df, processed_df, time_col = parse_csv(csv_file, use_cache=True)
+        raw_df, processed_df, time_col = parse_all_abraca_csvs(csv_dir)
 
         items = []
         for _, row in processed_df.iterrows():
             t_str = str(row.get(time_col, "")).strip() if time_col else ""
+
+            loc = str(row.get("Location", "")).strip()
+            if not loc or loc.lower() == "nan":
+                continue
 
             dist_val = row.get("Distance [km]")
             snr_val = row.get("SNR_max")
@@ -263,7 +275,7 @@ def _get_dx_snapshot() -> list[dict]:
             items.append({
                 "channel": str(row.get("Channel", "")).strip().upper(),
                 "label": str(row.get("Label", "")).strip(),
-                "location": str(row.get("Location", "")).strip(),
+                "location": loc,
                 "distance": float(dist_val) if pd.notna(dist_val) else None,
                 "snr_max": float(snr_val) if pd.notna(snr_val) else None,
                 "time": t_str,
@@ -279,15 +291,16 @@ def _get_dx_snapshot() -> list[dict]:
 
 def _send_dx(chat_id: int, text: str) -> None:
     """Send DX response."""
-    import pandas as pd
-
     items = _get_dx_snapshot()
     if not items:
-        _tg_send(chat_id, "No DX data available.")
+        _tg_send(chat_id, "\u2139\uFE0F No DX snapshot yet.")
         return
 
     # Parse command
     channel, min_dist, max_dist, limit = _parse_dx_command(text)
+
+    # Build filter description
+    filter_bits = []
 
     # Apply filters
     if channel:
@@ -295,9 +308,11 @@ def _send_dx(chat_id: int, text: str) -> None:
 
     if min_dist is not None:
         items = [it for it in items if it["distance"] is not None and it["distance"] > min_dist]
+        filter_bits.append(f">{min_dist:g}km")
 
     if max_dist is not None:
         items = [it for it in items if it["distance"] is not None and it["distance"] < max_dist]
+        filter_bits.append(f"<{max_dist:g}km")
 
     if limit is not None and limit > 0:
         items = items[:limit]
@@ -307,37 +322,65 @@ def _send_dx(chat_id: int, text: str) -> None:
     n = len(items)
 
     if channel:
-        mux_label = items[0].get("label", "") if items else ""
-        header = f"*DX {channel}* — {mux_label} — {now} ({n})"
+        mux_label = _cut(items[0].get("label", ""), 22) if items else ""
+        header = f"\U0001F4E1 DX {channel} \u2014 {mux_label} \u2014 {now} ({n})"
     else:
-        header = f"*DX* — {now} ({n})"
+        header = f"\U0001F4E1 DX \u2014 {now} ({n})"
+        if filter_bits:
+            header += f"\nFilter: {' | '.join(filter_bits)}"
 
     if not items:
         _tg_send(chat_id, header + "\nNo results.")
         return
 
     lines = []
-    for it in items[:50]:
-        dist = it["distance"]
-        snr = it["snr_max"]
 
-        dist_badge = _get_distance_badge(dist)
-        snr_badge = _get_snr_badge(snr)
+    if channel:
+        # Single channel: flat list
+        for it in items[:55]:
+            dist = it["distance"]
+            snr = it["snr_max"]
 
-        dist_txt = f"{dist:5.1f}km" if dist is not None else "  ?km"
-        snr_txt = f"{snr:4.1f}dB{snr_badge}" if snr is not None else f"  ?dB{snr_badge}"
+            dist_badge = _get_distance_badge(dist)
+            snr_badge = _get_snr_badge(snr)
 
-        loc = it.get("location", "")[:30]
-        lines.append(f"{dist_badge} {dist_txt:>8}  {snr_txt:>8}  {loc}")
+            dist_txt = f"{dist:5.1f}km" if dist is not None else "  ?km"
+            snr_txt = f"{snr:4.1f}dB{snr_badge}" if snr is not None else f"  ?dB{snr_badge}"
 
-    _tg_send(chat_id, header + "\n```\n" + "\n".join(lines) + "\n```")
+            lines.append(f"{dist_badge} {dist_txt:>8}  {snr_txt:>8}  {_hhmm(it.get('time', '')):>5}  {_cut(it.get('location', ''), 34)}")
+
+        _tg_send(chat_id, header + "\n```text\n" + "\n".join(lines) + "\n```")
+    else:
+        # All channels: group by block
+        groups = {}
+        for it in items:
+            ch = (it.get("channel") or "?").strip().upper()
+            groups.setdefault(ch, []).append(it)
+
+        for ch in sorted(groups.keys(), key=channel_sort_key):
+            lines.append(ch)
+            block_items = sorted(groups[ch], key=lambda x: (x["distance"] is not None, x["distance"] or 0), reverse=True)
+            for it in block_items[:30]:
+                dist = it["distance"]
+                snr = it["snr_max"]
+
+                dist_badge = _get_distance_badge(dist)
+                snr_badge = _get_snr_badge(snr)
+
+                dist_txt = f"{dist:5.1f}km" if dist is not None else "  ?km"
+                snr_txt = f"{snr:4.1f}dB{snr_badge}" if snr is not None else f"  ?dB{snr_badge}"
+
+                lines.append(f"  {dist_badge} {dist_txt:>8}  {snr_txt:>8}  {_hhmm(it.get('time', '')):>5}  {_cut(it.get('location', ''), 30)}")
+            lines.append("")
+
+        _tg_send(chat_id, header + "\n```text\n" + "\n".join(lines[:80]).rstrip() + "\n```")
 
 
 def _send_last(chat_id: int, text: str) -> None:
     """Send LAST response."""
     items = _get_dx_snapshot()
     if not items:
-        _tg_send(chat_id, "No DX data available.")
+        _tg_send(chat_id, "\u2139\uFE0F No DX snapshot yet.")
         return
 
     # Parse limit
@@ -346,11 +389,16 @@ def _send_last(chat_id: int, text: str) -> None:
     if len(parts) >= 2 and parts[1].isdigit():
         n = max(1, min(20, int(parts[1])))
 
-    # Sort by time (assuming most recent first in snapshot)
-    items = items[:n]
+    # Sort by time descending
+    items_with_time = [it for it in items if it.get("time")]
+    if items_with_time:
+        items_with_time.sort(key=lambda x: x.get("time", ""), reverse=True)
+        items = items_with_time[:n]
+    else:
+        items = items[:n]
 
     now = datetime.now().strftime("%d/%m %H:%M")
-    header = f"*LAST* — {now} ({len(items)})"
+    header = f"\u23F1\uFE0F LAST \u2014 {now} ({len(items)})"
 
     lines = []
     for it in items:
@@ -363,11 +411,11 @@ def _send_last(chat_id: int, text: str) -> None:
 
         dist_txt = f"{dist:5.1f}km" if dist is not None else "  ?km"
         snr_txt = f"{snr:4.1f}dB{sb}" if snr is not None else f"  ?dB{sb}"
+        hh = _hhmm(it.get("time", ""))
 
-        label = it.get("label", "")[:18]
-        lines.append(f"{db} {ch:>2}  {dist_txt:>8}  {snr_txt:>8}  {label}")
+        lines.append(f"{db} {ch:>3}  {dist_txt:>8}  {snr_txt:>8}  {hh:>5}  {_cut(it.get('label', ''), 18):<18}  {_cut(it.get('location', ''), 26)}")
 
-    _tg_send(chat_id, header + "\n```\n" + "\n".join(lines) + "\n```")
+    _tg_send(chat_id, header + "\n```text\n" + "\n".join(lines) + "\n```")
 
 
 def _parse_dx_command(text: str) -> tuple[str | None, float | None, float | None, int | None]:
@@ -412,13 +460,13 @@ def _get_distance_badge(dist) -> str:
     try:
         d = float(dist)
         if d > 300:
-            return "[P]"  # Purple equivalent
+            return "\U0001F7EA"  # 🟪 Purple square
         elif d > 100:
-            return "[O]"  # Orange equivalent
+            return "\U0001F7E7"  # 🟧 Orange square
         else:
-            return "[G]"  # Green equivalent
+            return "\U0001F7E9"  # 🟩 Green square
     except Exception:
-        return "[ ]"
+        return "\u2B1C"  # ⬜ White square
 
 
 def _get_snr_badge(snr) -> str:
@@ -426,10 +474,10 @@ def _get_snr_badge(snr) -> str:
     try:
         v = float(snr)
         if v < 6:
-            return "[!]"  # Red equivalent
+            return "\U0001F7E5"  # 🟥 Red square
         elif v < 10:
-            return "[~]"  # Orange equivalent
+            return "\U0001F7E7"  # 🟧 Orange square
         else:
-            return "[+]"  # Green equivalent
+            return "\U0001F7E9"  # 🟩 Green square
     except Exception:
-        return "[ ]"
+        return "\u2B1C"  # ⬜ White square
