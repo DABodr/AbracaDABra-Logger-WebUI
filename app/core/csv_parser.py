@@ -6,7 +6,7 @@ Refactored from abracadabra_dx_bot.py
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -299,6 +299,77 @@ def get_services_count(raw_df: pd.DataFrame, channel: str, label: str) -> int:
             except (ValueError, TypeError):
                 pass
     return 0
+
+
+def parse_all_abraca_csvs(csv_dir: Path, max_age_hours: int = 48) -> tuple[pd.DataFrame, pd.DataFrame, str | None]:
+    """Parse recent AbracaDABra CSV files in directory and concatenate.
+
+    Only files from the last `max_age_hours` hours are loaded (based on filename date
+    or file modification time). This avoids loading too much data when the directory
+    contains many historical files.
+
+    Returns:
+        Tuple of (raw_df, processed_df, time_column_name) combining recent files.
+    """
+    if not csv_dir.exists():
+        raise ValueError(f"CSV directory does not exist: {csv_dir}")
+
+    cutoff = datetime.now() - timedelta(hours=max_age_hours)
+    csv_files = sorted(csv_dir.glob("*.csv"))
+
+    raw_frames = []
+    time_col = None
+
+    for f in csv_files:
+        if f.name.lower() == "dab-tx-list.csv":
+            continue
+
+        # Filter by age: use filename date or file mtime
+        file_date = extract_date_from_filename(f.name)
+        if file_date is None:
+            try:
+                file_date = datetime.fromtimestamp(f.stat().st_mtime)
+            except Exception:
+                continue
+        if file_date < cutoff:
+            continue
+
+        try:
+            head = pd.read_csv(f, sep=";", nrows=1, encoding="utf-8")
+            required = {"Label", "Channel", "Location", "SNR [dB]"}
+            if not required.issubset(head.columns):
+                continue
+            raw, _, tc = parse_csv(f, use_cache=True)
+            raw_frames.append(raw)
+            if tc and not time_col:
+                time_col = tc
+        except Exception:
+            continue
+
+    if not raw_frames:
+        raise ValueError(f"No valid AbracaDABra CSV found in {csv_dir}")
+
+    # Concatenate all raw DataFrames
+    combined_raw = pd.concat(raw_frames, ignore_index=True)
+
+    # Re-deduplicate: keep best SNR per (Location, Channel, Label)
+    group_cols = ["Location", "Channel", "Label"]
+    df_sorted = combined_raw.sort_values("SNR [dB]", ascending=False, na_position="last")
+    df_best = df_sorted.drop_duplicates(subset=group_cols, keep="first").copy()
+
+    # Add SNR statistics across all files
+    stats = combined_raw.groupby(group_cols)["SNR [dB]"].agg(SNR_min="min", SNR_max="max").reset_index()
+    df_best = df_best.merge(stats, on=group_cols, how="left")
+
+    # Sort by channel then SNR
+    df_best["Channel"] = pd.Categorical(
+        df_best["Channel"],
+        categories=sorted(df_best["Channel"].dropna().unique(), key=channel_sort_key),
+        ordered=True
+    )
+    df_best = df_best.sort_values(["Channel", "SNR_max"], ascending=[True, False])
+
+    return combined_raw, df_best, time_col
 
 
 def clear_cache() -> None:

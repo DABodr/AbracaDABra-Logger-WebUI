@@ -145,3 +145,41 @@ def full_match_pipeline(
         matched = enrich_with_distance(matched, rx_lat, rx_lon)
 
     return matched, processed_df, time_col
+
+
+def full_match_pipeline_multi(
+    raw_df: pd.DataFrame,
+    processed_df: pd.DataFrame,
+    time_col: str | None,
+    tx_path: Path,
+    rx_lat: float,
+    rx_lon: float,
+) -> tuple[pd.DataFrame, pd.DataFrame, str | None]:
+    """Run the full matching pipeline from pre-parsed DataFrames (multi-CSV).
+
+    Args:
+        raw_df: Combined raw DataFrame from all CSV files
+        processed_df: Combined deduplicated DataFrame
+        time_col: Name of the time column
+        tx_path: Path to TX database (dab-tx-list.csv)
+        rx_lat: Receiver latitude
+        rx_lon: Receiver longitude
+
+    Returns:
+        Tuple of (matched_df, processed_df, time_column)
+    """
+    # Load TX database
+    tx_db = get_tx_database()
+    tx_df = tx_db.load(tx_path)
+
+    # Prepare RX for matching
+    rx_for_match = prepare_rx_for_matching(raw_df)
+
+    # Match
+    matched = match_rx_tx(rx_for_match, tx_df)
+
+    # Add distance
+    if not matched.empty:
+        matched = enrich_with_distance(matched, rx_lat, rx_lon)
+
+    return matched, processed_df, time_col

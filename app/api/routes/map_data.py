@@ -7,8 +7,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from ...config import get_config
-from ...core.csv_parser import choose_latest_abraca_csv, parse_csv
-from ...core.matcher import full_match_pipeline
+from ...core.csv_parser import parse_all_abraca_csvs
+from ...core.matcher import full_match_pipeline_multi
 from ...core.aggregator import aggregate_to_mux_groups, build_map_markers
 from ..models.map import MapMarkersResponse, MapConfigResponse
 
@@ -22,10 +22,10 @@ async def get_map_markers() -> MapMarkersResponse:
     csv_dir = Path(config.paths.csv_dir)
     tx_path = Path(config.paths.tx_db_path)
 
-    # Find latest CSV
-    csv_file = choose_latest_abraca_csv(csv_dir)
-    if csv_file is None:
-        # Return empty map with just RX marker
+    try:
+        raw_df, processed_df, time_col = parse_all_abraca_csvs(csv_dir)
+    except ValueError:
+        # No CSV files found - return empty map with just RX marker
         from ..models.map import RXMarker
         return MapMarkersResponse(
             rx=RXMarker(name=config.rx.name, lat=config.rx.lat, lon=config.rx.lon),
@@ -39,15 +39,14 @@ async def get_map_markers() -> MapMarkersResponse:
     try:
         if tx_path.exists():
             # Full matching pipeline
-            matched_df, processed_df, time_col = full_match_pipeline(
-                csv_path=csv_file,
+            matched_df, processed_df, time_col = full_match_pipeline_multi(
+                raw_df=raw_df,
+                processed_df=processed_df,
+                time_col=time_col,
                 tx_path=tx_path,
                 rx_lat=config.rx.lat,
                 rx_lon=config.rx.lon,
-                use_cache=True,
             )
-
-            raw_df, _, _ = parse_csv(csv_file, use_cache=True)
 
             # Get TX database for EID filtering
             from ...core.tx_database import get_tx_database

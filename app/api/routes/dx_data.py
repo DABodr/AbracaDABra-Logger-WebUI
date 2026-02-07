@@ -9,8 +9,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from ...config import get_config
-from ...core.csv_parser import choose_latest_abraca_csv, parse_csv
-from ...core.matcher import full_match_pipeline
+from ...core.csv_parser import parse_all_abraca_csvs
+from ...core.matcher import full_match_pipeline_multi
 from ...core.aggregator import (
     aggregate_to_mux_groups,
     build_dx_table_response,
@@ -28,28 +28,21 @@ def _get_mux_groups() -> tuple[list[MuxGroup], str | None]:
     csv_dir = Path(config.paths.csv_dir)
     tx_path = Path(config.paths.tx_db_path)
 
-    # Find latest CSV
-    csv_file = choose_latest_abraca_csv(csv_dir)
-    if csv_file is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No valid AbracaDABra CSV found in {csv_dir}"
-        )
-
     try:
+        # Parse all CSV files in directory
+        raw_df, processed_df, time_col = parse_all_abraca_csvs(csv_dir)
+
         # Check if TX database exists
         if tx_path.exists():
             # Full matching pipeline with TX data
-            matched_df, processed_df, time_col = full_match_pipeline(
-                csv_path=csv_file,
+            matched_df, processed_df, time_col = full_match_pipeline_multi(
+                raw_df=raw_df,
+                processed_df=processed_df,
+                time_col=time_col,
                 tx_path=tx_path,
                 rx_lat=config.rx.lat,
                 rx_lon=config.rx.lon,
-                use_cache=True,
             )
-
-            # Parse raw for services count
-            raw_df, _, _ = parse_csv(csv_file, use_cache=True)
 
             # Get TX database for EID filtering
             from ...core.tx_database import get_tx_database
@@ -65,21 +58,20 @@ def _get_mux_groups() -> tuple[list[MuxGroup], str | None]:
             )
         else:
             # No TX database - parse CSV only
-            raw_df, processed_df, time_col = parse_csv(csv_file, use_cache=True)
-
             from ...core.aggregator import _aggregate_without_tx
             mux_groups = _aggregate_without_tx(processed_df, raw_df, time_col)
 
         # Update status
+        csv_name = f"{len(set(raw_df.get('_source_file', [])))} fichiers CSV" if '_source_file' in raw_df.columns else "all CSV"
         total_tii = sum(len(m.tii_list) for m in mux_groups)
         update_status(
-            csv_file=csv_file.name,
+            csv_file=csv_name,
             mux_count=len(mux_groups),
             tii_count=total_tii,
         )
         clear_error()
 
-        return mux_groups, csv_file.name
+        return mux_groups, csv_name
 
     except Exception as e:
         update_status(error=str(e))
