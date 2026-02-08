@@ -100,11 +100,7 @@ def aggregate_to_mux_groups(
                 bloc, ensemble, eid, ensemble_matched, raw_df, time_col
             )
             mux_groups.append(mux_group)
-        # Case 3: EID known in TX but no match → IGNORE (fake TII from bug)
-        elif eid in known_eids:
-            # Skip this ensemble (fake TII)
-            continue
-        # Case 2: EID unknown in TX → create MuxGroup without TX details (DX surprise!)
+        # Case 2: No TX match (EID known or unknown) → create MuxGroup without TX details
         else:
             mux_group = _create_mux_group_without_tx(
                 bloc, ensemble, eid, rx_group, raw_df, time_col
