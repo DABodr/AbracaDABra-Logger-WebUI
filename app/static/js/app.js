@@ -614,10 +614,10 @@ function appData() {
             // Helper function to get SNR background color
             const getSnrColor = (snr) => {
                 if (snr === null || snr === undefined) return '#e5e7eb'; // gray
-                if (snr >= 20) return '#22c55e'; // green
-                if (snr >= 10) return '#f59e0b'; // orange
-                if (snr >= 6) return '#eab308'; // yellow
-                return '#ef4444'; // red
+                if (snr >= 20) return '#2ea043'; // excellent - dark green
+                if (snr >= 10) return '#56d364'; // good - light green
+                if (snr >= 6) return '#e3b341'; // medium - yellow/orange
+                return '#f85149'; // bad - red
             };
 
             // Helper function to format SNR value
