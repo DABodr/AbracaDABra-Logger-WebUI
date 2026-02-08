@@ -467,8 +467,13 @@
                                     <div class="px-2 py-3 text-center">
                                         <span class="font-mono text-xs text-gray-400" x-text="mux.eid"></span>
                                     </div>
-                                    <div class="px-3 py-3">
-                                        <span class="font-semibold text-white text-sm" x-text="mux.ensemble"></span>
+                                    <div class="px-3 py-3 flex items-center gap-1.5">
+                                        <span class="font-semibold text-white text-sm flex-1 truncate" x-text="mux.ensemble"></span>
+                                        <button
+                                            @click.stop="openSnrPopup($event, mux)"
+                                            class="w-5 h-5 rounded-full border border-dab-border/60 text-gray-500 hover:text-dab-blue hover:border-dab-blue/50 text-[10px] font-bold flex-shrink-0 inline-flex items-center justify-center transition-colors"
+                                            title="Détails SNR"
+                                        >?</button>
                                     </div>
                                     <div class="px-3 py-3 text-center">
                                         <span class="text-gray-400 text-xs" x-text="mux.station_count"></span>
@@ -489,13 +494,14 @@
                                     <div class="px-2 py-3 text-center">
                                         <span
                                             x-show="mux.snr_max !== null && mux.snr_max !== undefined"
-                                            class="px-1.5 py-0.5 rounded text-xs font-bold"
+                                            class="px-1.5 py-0.5 rounded text-xs font-bold cursor-help"
                                             :class="{
                                                 'snr-excellent': mux.snr_max >= 20,
                                                 'snr-good': mux.snr_max >= 10 && mux.snr_max < 20,
                                                 'snr-medium': mux.snr_max >= 6 && mux.snr_max < 10,
                                                 'snr-bad': mux.snr_max < 6
                                             }"
+                                            :title="mux.snr_max_time ? new Date(mux.snr_max_time).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'}) : ''"
                                             x-text="mux.snr_max?.toFixed(1)"
                                         ></span>
                                     </div>
@@ -546,8 +552,12 @@
                                     <div class="px-1 py-2">
                                         <span class="font-mono font-bold text-dab-blue text-xs" x-text="mux.bloc"></span>
                                     </div>
-                                    <div class="px-1 py-2 truncate">
-                                        <span class="font-semibold text-white text-xs" x-text="mux.ensemble"></span>
+                                    <div class="px-1 py-2 flex items-center gap-0.5 min-w-0">
+                                        <span class="font-semibold text-white text-xs flex-1 truncate" x-text="mux.ensemble"></span>
+                                        <button
+                                            @click.stop="openSnrPopup($event, mux)"
+                                            class="w-4 h-4 rounded-full border border-dab-border/60 text-gray-500 text-[8px] font-bold flex-shrink-0 inline-flex items-center justify-center"
+                                        >?</button>
                                     </div>
                                     <!-- Colonne SNR avec Min/Max/Live empilés -->
                                     <div class="px-1 py-1">
@@ -572,13 +582,14 @@
                                                 <span class="text-gray-500 w-6">Max</span>
                                                 <span
                                                     x-show="mux.snr_max !== null && mux.snr_max !== undefined"
-                                                    class="px-1 rounded font-bold"
+                                                    class="px-1 rounded font-bold cursor-help"
                                                     :class="{
                                                         'snr-excellent': mux.snr_max >= 20,
                                                         'snr-good': mux.snr_max >= 10 && mux.snr_max < 20,
                                                         'snr-medium': mux.snr_max >= 6 && mux.snr_max < 10,
                                                         'snr-bad': mux.snr_max < 6
                                                     }"
+                                                    :title="mux.snr_max_time ? new Date(mux.snr_max_time).toLocaleString('fr-FR', {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit'}) : ''"
                                                     x-text="mux.snr_max?.toFixed(0)"
                                                 ></span>
                                             </div>
@@ -1122,6 +1133,104 @@
         </div>
     </div>
 
+    <!-- SNR Detail Popup -->
+    <div
+        x-show="snrPopup.show"
+        x-transition:enter="transition ease-out duration-150"
+        x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100"
+        x-transition:leave="transition ease-in duration-100"
+        x-transition:leave-start="opacity-100"
+        x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="snrPopup.show = false"
+        @keydown.escape.window="snrPopup.show = false"
+        x-cloak
+    >
+        <div class="bg-dab-card border border-dab-border rounded-xl shadow-2xl p-4 w-[260px]" @click.stop>
+            <div class="space-y-3" x-show="snrPopup.mux">
+                <!-- SNR Min -->
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400 uppercase tracking-wide font-medium">SNR Min</span>
+                        <span
+                            x-show="snrPopup.mux?.snr_min != null"
+                            class="px-2.5 py-1 rounded text-sm font-bold"
+                            :class="{
+                                'snr-excellent': snrPopup.mux?.snr_min >= 20,
+                                'snr-good': snrPopup.mux?.snr_min >= 10 && snrPopup.mux?.snr_min < 20,
+                                'snr-medium': snrPopup.mux?.snr_min >= 6 && snrPopup.mux?.snr_min < 10,
+                                'snr-bad': snrPopup.mux?.snr_min < 6
+                            }"
+                        >
+                            <span x-text="snrPopup.mux?.snr_min?.toFixed(1)"></span>
+                            <span class="text-xs font-normal ml-0.5">dB</span>
+                        </span>
+                        <span x-show="snrPopup.mux?.snr_min == null" class="text-gray-500 text-sm">—</span>
+                    </div>
+                    <div x-show="snrPopup.mux?.snr_min_time" class="text-xs text-gray-400 text-right mt-1.5 font-mono">
+                        <span x-text="formatSnrTime(snrPopup.mux?.snr_min_time)"></span>
+                    </div>
+                </div>
+
+                <div class="border-t border-dab-border/50"></div>
+
+                <!-- SNR Max -->
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400 uppercase tracking-wide font-medium">SNR Max</span>
+                        <span
+                            x-show="snrPopup.mux?.snr_max != null"
+                            class="px-2.5 py-1 rounded text-sm font-bold"
+                            :class="{
+                                'snr-excellent': snrPopup.mux?.snr_max >= 20,
+                                'snr-good': snrPopup.mux?.snr_max >= 10 && snrPopup.mux?.snr_max < 20,
+                                'snr-medium': snrPopup.mux?.snr_max >= 6 && snrPopup.mux?.snr_max < 10,
+                                'snr-bad': snrPopup.mux?.snr_max < 6
+                            }"
+                        >
+                            <span x-text="snrPopup.mux?.snr_max?.toFixed(1)"></span>
+                            <span class="text-xs font-normal ml-0.5">dB</span>
+                        </span>
+                        <span x-show="snrPopup.mux?.snr_max == null" class="text-gray-500 text-sm">—</span>
+                    </div>
+                    <div x-show="snrPopup.mux?.snr_max_time" class="text-xs text-gray-400 text-right mt-1.5 font-mono">
+                        <span x-text="formatSnrTime(snrPopup.mux?.snr_max_time)"></span>
+                    </div>
+                </div>
+
+                <div class="border-t border-dab-border/50"></div>
+
+                <!-- SNR Live -->
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-gray-400 uppercase tracking-wide font-medium">SNR Live</span>
+                        <span
+                            x-show="snrPopup.mux?.snr_live != null"
+                            class="px-2.5 py-1 rounded text-sm font-bold"
+                            :class="{
+                                'snr-excellent': snrPopup.mux?.snr_live >= 20,
+                                'snr-good': snrPopup.mux?.snr_live >= 10 && snrPopup.mux?.snr_live < 20,
+                                'snr-medium': snrPopup.mux?.snr_live >= 6 && snrPopup.mux?.snr_live < 10,
+                                'snr-bad': snrPopup.mux?.snr_live < 6
+                            }"
+                        >
+                            <span x-text="snrPopup.mux?.snr_live?.toFixed(1)"></span>
+                            <span class="text-xs font-normal ml-0.5">dB</span>
+                        </span>
+                        <span
+                            x-show="snrPopup.mux?.snr_live == null"
+                            class="px-2.5 py-1 rounded text-sm font-bold bg-dab-red text-white"
+                        >0 <span class="text-xs font-normal ml-0.5">dB</span></span>
+                    </div>
+                    <div x-show="snrPopup.mux?.last_rx_time" class="text-xs text-gray-400 text-right mt-1.5 font-mono">
+                        <span x-text="formatSnrTime(snrPopup.mux?.last_rx_time)"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div
         x-show="toast.show"
@@ -1141,6 +1250,6 @@
         <span x-text="toast.message"></span>
     </div>
 
-    <script src="/static/js/app.js?v=36"></script>
+    <script src="/static/js/app.js?v=37"></script>
 </body>
 </html>

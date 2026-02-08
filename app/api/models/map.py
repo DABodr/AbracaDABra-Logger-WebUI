@@ -25,7 +25,9 @@ class TXEnsemble(BaseModel):
     main: int
     sub: int
     snr_min: Optional[float] = None
+    snr_min_time: Optional[datetime] = None
     snr_max: Optional[float] = None
+    snr_max_time: Optional[datetime] = None
     level_db: Optional[float] = None
     is_live: bool = False
     last_rx_time: Optional[datetime] = None

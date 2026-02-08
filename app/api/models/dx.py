@@ -21,7 +21,9 @@ class TIIDetail(BaseModel):
     erp_kw: Optional[float] = Field(None, description="Effective radiated power in kW")
     level_db: Optional[float] = Field(None, description="Relative power level in dB (0.0 = reference)")
     snr_min: Optional[float] = Field(None, description="Minimum SNR recorded")
+    snr_min_time: Optional[datetime] = Field(None, description="Time when SNR min was recorded")
     snr_max: Optional[float] = Field(None, description="Maximum SNR recorded")
+    snr_max_time: Optional[datetime] = Field(None, description="Time when SNR max was recorded")
     last_rx_time: Optional[datetime] = Field(None, description="Last reception time")
     is_live: bool = Field(False, description="True if present in latest scan")
 
@@ -36,7 +38,9 @@ class MuxGroup(BaseModel):
     station_count: int = Field(0, description="Number of services/stations")
     tii_list: list[TIIDetail] = Field(default_factory=list, description="List of TII transmitters")
     snr_min: Optional[float] = Field(None, description="Global minimum SNR ever recorded")
+    snr_min_time: Optional[datetime] = Field(None, description="Time when SNR min was recorded")
     snr_max: Optional[float] = Field(None, description="Global maximum SNR ever recorded")
+    snr_max_time: Optional[datetime] = Field(None, description="Time when SNR max was recorded")
     snr_live: Optional[float] = Field(None, description="Current SNR from latest scan (0 = not present)")
     last_rx_time: Optional[datetime] = Field(None, description="Most recent reception time")
 

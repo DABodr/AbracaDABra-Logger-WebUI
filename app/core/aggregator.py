@@ -158,10 +158,22 @@ def _create_mux_group_with_tx(
         tii_rows = group[tii_mask]
 
         snr_col = "SNR [dB]" if "SNR [dB]" in tii_rows.columns else "snr"
+        snr_min_time = None
+        snr_max_time = None
         if snr_col in tii_rows.columns:
             snr_vals = pd.to_numeric(tii_rows[snr_col], errors="coerce").dropna()
             snr_min = snr_vals.min() if not snr_vals.empty else None
             snr_max = snr_vals.max() if not snr_vals.empty else None
+            if snr_min is not None and time_col and time_col in tii_rows.columns:
+                min_idx = snr_vals.idxmin()
+                snr_min_time = pd.to_datetime(tii_rows.loc[min_idx, time_col], errors="coerce")
+                if pd.isna(snr_min_time):
+                    snr_min_time = None
+            if snr_max is not None and time_col and time_col in tii_rows.columns:
+                max_idx = snr_vals.idxmax()
+                snr_max_time = pd.to_datetime(tii_rows.loc[max_idx, time_col], errors="coerce")
+                if pd.isna(snr_max_time):
+                    snr_max_time = None
         else:
             snr_min = snr_max = None
 
@@ -199,7 +211,9 @@ def _create_mux_group_with_tx(
             erp_kw=float(row.get("erp_kw")) if pd.notna(row.get("erp_kw")) else None,
             level_db=float(level_db) if level_db is not None else None,
             snr_min=float(snr_min) if snr_min is not None else None,
+            snr_min_time=snr_min_time,
             snr_max=float(snr_max) if snr_max is not None else None,
+            snr_max_time=snr_max_time,
             last_rx_time=tii_time if pd.notna(tii_time) else None,
             is_live=is_live,
         )
@@ -212,10 +226,22 @@ def _create_mux_group_with_tx(
 
     # Get global SNR stats
     snr_col = "SNR [dB]" if "SNR [dB]" in group.columns else "snr"
+    global_snr_min_time = None
+    global_snr_max_time = None
     if snr_col in group.columns:
         snr_vals = pd.to_numeric(group[snr_col], errors="coerce").dropna()
         global_snr_min = snr_vals.min() if not snr_vals.empty else None
         global_snr_max = snr_vals.max() if not snr_vals.empty else None
+        if global_snr_min is not None and time_col and time_col in group.columns:
+            min_idx = snr_vals.idxmin()
+            global_snr_min_time = pd.to_datetime(group.loc[min_idx, time_col], errors="coerce")
+            if pd.isna(global_snr_min_time):
+                global_snr_min_time = None
+        if global_snr_max is not None and time_col and time_col in group.columns:
+            max_idx = snr_vals.idxmax()
+            global_snr_max_time = pd.to_datetime(group.loc[max_idx, time_col], errors="coerce")
+            if pd.isna(global_snr_max_time):
+                global_snr_max_time = None
     else:
         global_snr_min = global_snr_max = None
 
@@ -234,7 +260,9 @@ def _create_mux_group_with_tx(
         station_count=station_count,
         tii_list=tii_list,
         snr_min=float(global_snr_min) if global_snr_min is not None else None,
+        snr_min_time=global_snr_min_time,
         snr_max=float(global_snr_max) if global_snr_max is not None else None,
+        snr_max_time=global_snr_max_time,
         snr_live=snr_live,
         last_rx_time=last_time if pd.notna(last_time) else None,
     )
@@ -262,10 +290,22 @@ def _create_mux_group_without_tx(
     ensemble_mask = (raw_df["Channel"] == bloc) & (raw_df["Label"] == ensemble)
     ensemble_raw = raw_df[ensemble_mask]
 
+    snr_min_time = None
+    snr_max_time = None
     if not ensemble_raw.empty and "SNR [dB]" in ensemble_raw.columns:
         snr_vals = pd.to_numeric(ensemble_raw["SNR [dB]"], errors="coerce").dropna()
         snr_min = snr_vals.min() if not snr_vals.empty else None
         snr_max = snr_vals.max() if not snr_vals.empty else None
+        if snr_min is not None and time_col and time_col in ensemble_raw.columns:
+            min_idx = snr_vals.idxmin()
+            snr_min_time = pd.to_datetime(ensemble_raw.loc[min_idx, time_col], errors="coerce")
+            if pd.isna(snr_min_time):
+                snr_min_time = None
+        if snr_max is not None and time_col and time_col in ensemble_raw.columns:
+            max_idx = snr_vals.idxmax()
+            snr_max_time = pd.to_datetime(ensemble_raw.loc[max_idx, time_col], errors="coerce")
+            if pd.isna(snr_max_time):
+                snr_max_time = None
     else:
         snr_min = None
         snr_max = None
@@ -312,10 +352,22 @@ def _create_mux_group_without_tx(
                 tii_mask = (ensemble_raw["Main"] == main) & (ensemble_raw["Sub"] == sub)
                 tii_rows = ensemble_raw[tii_mask]
 
+                tii_snr_min_time = None
+                tii_snr_max_time = None
                 if not tii_rows.empty and "SNR [dB]" in tii_rows.columns:
                     tii_snr_vals = pd.to_numeric(tii_rows["SNR [dB]"], errors="coerce").dropna()
                     tii_snr_min = tii_snr_vals.min() if not tii_snr_vals.empty else None
                     tii_snr_max = tii_snr_vals.max() if not tii_snr_vals.empty else None
+                    if tii_snr_min is not None and time_col and time_col in tii_rows.columns:
+                        min_idx = tii_snr_vals.idxmin()
+                        tii_snr_min_time = pd.to_datetime(tii_rows.loc[min_idx, time_col], errors="coerce")
+                        if pd.isna(tii_snr_min_time):
+                            tii_snr_min_time = None
+                    if tii_snr_max is not None and time_col and time_col in tii_rows.columns:
+                        max_idx = tii_snr_vals.idxmax()
+                        tii_snr_max_time = pd.to_datetime(tii_rows.loc[max_idx, time_col], errors="coerce")
+                        if pd.isna(tii_snr_max_time):
+                            tii_snr_max_time = None
                 else:
                     tii_snr_min = tii_snr_max = None
 
@@ -352,7 +404,9 @@ def _create_mux_group_without_tx(
                     erp_kw=None,
                     level_db=float(level_db) if level_db is not None else None,
                     snr_min=float(tii_snr_min) if tii_snr_min is not None else None,
+                    snr_min_time=tii_snr_min_time,
                     snr_max=float(tii_snr_max) if tii_snr_max is not None else None,
+                    snr_max_time=tii_snr_max_time,
                     last_rx_time=tii_time if pd.notna(tii_time) else None,
                     is_live=is_live,
                 )
@@ -370,7 +424,9 @@ def _create_mux_group_without_tx(
         station_count=station_count,
         tii_list=tii_list,
         snr_min=float(snr_min) if pd.notna(snr_min) else None,
+        snr_min_time=snr_min_time,
         snr_max=float(snr_max) if pd.notna(snr_max) else None,
+        snr_max_time=snr_max_time,
         snr_live=snr_live,
         last_rx_time=last_time if pd.notna(last_time) else None,
     )
@@ -634,7 +690,9 @@ def build_map_markers(
                 main=tii.main,
                 sub=tii.sub,
                 snr_min=tii.snr_min,
+                snr_min_time=tii.snr_min_time,
                 snr_max=tii.snr_max,
+                snr_max_time=tii.snr_max_time,
                 level_db=tii.level_db,
                 is_live=tii.is_live,
                 last_rx_time=tii.last_rx_time,

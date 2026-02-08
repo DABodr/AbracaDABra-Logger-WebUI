@@ -75,6 +75,12 @@ function appData() {
             title: '',
         },
 
+        // SNR Detail Popup
+        snrPopup: {
+            show: false,
+            mux: null,
+        },
+
         // Computed
         get filteredMuxGroups() {
             if (!this.filterText) return this.muxGroups;
@@ -663,7 +669,7 @@ function appData() {
                             <td style="padding:6px 6px;font-size:11px;line-height:1.3;color:#24292e;">${ens.ensemble}</td>
                             <td style="padding:6px 4px;text-align:center;font-size:10px;font-weight:500;color:#57606a;">${erpText}</td>
                             <td style="padding:6px 4px;text-align:center;font-weight:600;background:${getSnrColor(ens.snr_min)};color:#000;font-size:11px;border-radius:3px;">${formatSnr(ens.snr_min)}</td>
-                            <td style="padding:6px 4px;text-align:center;font-weight:600;background:${getSnrColor(ens.snr_max)};color:#000;font-size:11px;border-radius:3px;">${formatSnr(ens.snr_max)}</td>
+                            <td style="padding:6px 4px;text-align:center;font-weight:600;background:${getSnrColor(ens.snr_max)};color:#000;font-size:11px;border-radius:3px;cursor:help;" title="${ens.snr_max_time ? formatDate(ens.snr_max_time) : ''}">${formatSnr(ens.snr_max)}</td>
                             <td style="padding:6px 4px;text-align:center;font-weight:600;background:${getSnrColor(ens.is_live ? ens.snr_max : null)};color:#000;font-size:11px;border-radius:3px;">${ens.is_live ? formatSnr(ens.snr_max) : '—'}</td>
                             <td style="padding:6px 4px;text-align:center;font-size:10px;color:#57606a;font-family:monospace;">${ens.main}</td>
                             <td style="padding:6px 4px;text-align:center;font-size:10px;color:#57606a;font-family:monospace;">${ens.sub}</td>
@@ -951,6 +957,21 @@ function appData() {
 
         closeBrowser() {
             this.fileBrowser.show = false;
+        },
+
+        openSnrPopup(event, mux) {
+            event.stopPropagation();
+            this.snrPopup = { show: true, mux: mux };
+        },
+
+        formatSnrTime(dateStr) {
+            if (!dateStr) return '';
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            return d.toLocaleString('fr-FR', {
+                day: '2-digit', month: '2-digit', year: '2-digit',
+                hour: '2-digit', minute: '2-digit'
+            });
         },
 
         formatFileSize(bytes) {
