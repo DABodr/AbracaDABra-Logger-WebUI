@@ -180,7 +180,7 @@ function appData() {
 
         async loadMapData() {
             const CACHE_KEY = 'abracadabra_map_data';
-            const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+            const CACHE_TTL = 60 * 1000; // 1 minute
 
             try {
                 // ÉTAPE 1: Vérifier le cache (stale-while-revalidate)
@@ -279,7 +279,7 @@ function appData() {
                 this.refreshTimer = setInterval(() => {
                     this.loadTableData();
                     if (this.map) {
-                        this.updateMapMarkers();
+                        this.updateMapMarkers(true);
                     }
                 }, this.refreshInterval * 1000);
             }
@@ -539,8 +539,27 @@ function appData() {
             }
         },
 
-        async updateMapMarkers() {
-            const mapData = await this.loadMapData();
+        async updateMapMarkers(forceRefresh = false) {
+            let mapData;
+            if (forceRefresh) {
+                // Bypass cache — fetch directly from API
+                try {
+                    const response = await fetch('/api/map/markers');
+                    mapData = await response.json();
+                    // Update cache with fresh data
+                    try {
+                        localStorage.setItem('abracadabra_map_data', JSON.stringify({
+                            data: mapData,
+                            timestamp: Date.now()
+                        }));
+                    } catch (e) { /* ignore */ }
+                } catch (error) {
+                    console.error('[MAP] Force refresh failed:', error);
+                    return;
+                }
+            } else {
+                mapData = await this.loadMapData();
+            }
             if (!mapData || !this.map) return;
 
             this.updateMapMarkersFromData(mapData);
