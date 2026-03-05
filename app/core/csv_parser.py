@@ -324,14 +324,16 @@ def parse_all_abraca_csvs(csv_dir: Path, max_age_hours: int = 48) -> tuple[pd.Da
         if f.name.lower() == "dab-tx-list.csv":
             continue
 
-        # Filter by age: use filename date or file mtime
+        # Filter by age: use the MOST RECENT of filename date and mtime.
+        # AbracaDABra may write continuously to a file started >48h ago — the mtime
+        # reflects the last write and is the correct indicator of activity.
         file_date = extract_date_from_filename(f.name)
-        if file_date is None:
-            try:
-                file_date = datetime.fromtimestamp(f.stat().st_mtime)
-            except Exception:
-                continue
-        if file_date < cutoff:
+        try:
+            mtime = datetime.fromtimestamp(f.stat().st_mtime)
+        except Exception:
+            continue
+        effective_date = max(file_date, mtime) if file_date else mtime
+        if effective_date < cutoff:
             continue
 
         try:
